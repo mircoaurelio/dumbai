@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Local Gemini - Seamless</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #f0f4f9;
+            --surface: #ffffff;
+            --primary: #0b57d0;
+            --primary-hover: #0842a0;
+            --text-main: #1f1f1f;
+            --text-secondary: #444746;
+            --user-msg-bg: #e3e3e3;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+            --touch-min: 44px;
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
+
+        html { -webkit-text-size-adjust: 100%; }
+        body { font-family: 'Google Sans', system-ui, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; display: flex; flex-direction: row; height: 100vh; height: 100dvh; overflow: hidden; padding: 0; }
+
+        /* Sidebar - chat history (Gemini-style) */
+        .sidebar { width: 280px; min-width: 280px; background: var(--surface); border-right: 1px solid #e0e0e0; display: flex; flex-direction: column; flex-shrink: 0; padding-left: var(--safe-left); }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; opacity: 0; transition: opacity 0.25s ease; }
+        .sidebar-backdrop.visible { opacity: 1; }
+        .sidebar-header { padding: 12px 16px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .sidebar-title { font-size: 14px; font-weight: 500; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+        .sidebar-header .new-chat-btn { margin: 0; padding: 4px 8px; font-size: 11px; font-weight: 400; border-radius: 12px; }
+        .sidebar-header .new-chat-btn .material-symbols-outlined { font-size: 14px; }
+        .chat-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+        .chat-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; margin: 0 8px; border-radius: 12px; cursor: pointer; font-size: 14px; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; transition: background 0.15s; }
+        .chat-item:hover { background: #f0f4f9; }
+        .chat-item.active { background: #e8f0fe; color: var(--primary); }
+        .chat-item .chat-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .chat-item .chat-item-delete { opacity: 0; padding: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s; pointer-events: none; }
+        .chat-item:hover .chat-item-delete { opacity: 1; pointer-events: auto; }
+        .chat-item .chat-item-delete:hover { background: rgba(0,0,0,0.08); color: #d93025; }
+        
+        .hamburger { display: none; background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 10px; border-radius: 50%; min-width: var(--touch-min); min-height: var(--touch-min); align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+        .hamburger:hover { background: rgba(0,0,0,0.05); }
+        .hamburger span { font-size: 24px; }
+
+        header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; padding-left: max(24px, var(--safe-left)); padding-right: max(24px, var(--safe-right)); padding-top: max(12px, var(--safe-top)); background: var(--bg-color); flex-shrink: 0; }
+        .logo { font-size: 22px; font-weight: 500; display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+        .logo span.material-symbols-outlined { color: #d93025; }
+        
+        .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        select { padding: 10px 16px; border-radius: 8px; border: 1px solid #ccc; background: var(--surface); color: var(--text-main); font-family: inherit; font-size: 14px; cursor: pointer; outline: none; min-width: 160px; max-width: 300px; }
+        /* Model selector dropdown */
+        .model-select-wrap { position: relative; min-width: 200px; }
+        .model-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; background: var(--surface); color: var(--text-main); font-family: inherit; font-size: 14px; cursor: pointer; outline: none; width: 100%; text-align: left; transition: border-color 0.2s, box-shadow 0.2s; }
+        .model-select-trigger:hover { border-color: #999; }
+        .model-select-trigger.open { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(11,87,208,0.2); }
+        .model-select-trigger .trigger-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .model-select-trigger .trigger-icon { flex-shrink: 0; color: var(--text-secondary); transition: transform 0.2s; }
+        .model-select-trigger.open .trigger-icon { transform: rotate(180deg); }
+        .model-select-trigger:disabled { opacity: 0.7; cursor: not-allowed; }
+        .model-select-dropdown { position: absolute; top: calc(100% + 6px); left: 0; right: 0; max-height: 320px; overflow-y: auto; background: var(--surface); border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 50; display: none; }
+        .model-select-dropdown.open { display: block; }
+        .model-select-group { padding: 8px 0 4px; }
+        .model-select-group-title { padding: 4px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+        .model-select-option { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; font-size: 14px; color: var(--text-main); transition: background 0.15s; }
+        .model-select-option:hover { background: #f0f4f9; }
+        .model-select-option.selected { background: #e8f0fe; color: var(--primary); font-weight: 500; }
+        .model-select-option .option-label { flex: 1; min-width: 0; }
+        .model-select-option .option-badge { font-size: 11px; color: #0d7d2e; font-weight: 500; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+        
+        .new-chat-btn { display: flex; align-items: center; gap: 6px; background: var(--surface); color: var(--text-main); border: 1px solid #ccc; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; font-family: inherit; }
+        .new-chat-btn:hover { background: #e8eaed; }
+        .new-chat-btn span { font-size: 18px; }
+        .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .icon-btn:hover { background: rgba(0,0,0,0.05); }
+
+        /* Overlay */
+        #setup-overlay { position: absolute; inset: 0; padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); background: rgba(240, 244, 249, 0.9); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); box-sizing: border-box; }
+        #setup-overlay.hidden { display: none; }
+        .loader-card { background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 450px; width: 100%; }
+        .loader-card h2 { margin-top: 0; }
+        #progress-bg { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin: 20px 0; }
+        #progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease; }
+        .primary-btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 24px; font-size: 16px; font-weight: 500; cursor: pointer; font-family: inherit; width: 100%; margin-top: 10px; transition: 0.2s; }
+        .primary-btn:hover:not(:disabled) { background: var(--primary-hover); }
+        .primary-btn:disabled { background: #ccc; cursor: not-allowed; display: none; }
+
+        .app-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+        /* Chat Area */
+        main { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; position: relative; min-height: 0; }
+        #chat-history { flex: 1; overflow-y: auto; padding: 24px; padding-left: max(24px, var(--safe-left)); padding-right: max(24px, var(--safe-right)); display: flex; flex-direction: column; gap: 30px; scroll-behavior: smooth; min-height: 0; -webkit-overflow-scrolling: touch; }
+        
+        .message-row { display: flex; width: 100%; }
+        .message-row.user { justify-content: flex-end; }
+        .message-row.ai { justify-content: flex-start; }
+        .message-bubble { max-width: 85%; line-height: 1.6; position: relative; word-wrap: break-word; overflow-wrap: break-word; }
+        .message-row.user .message-bubble { background: var(--user-msg-bg); padding: 12px 20px; border-radius: 24px; border-top-right-radius: 4px; }
+        .message-row.ai .message-bubble { padding: 0 10px; width: 100%; }
+        
+        .message-row.ai .message-bubble pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 12px; overflow-x: auto; font-family: monospace; font-size: 14px; margin: 10px 0; max-width: 100%; }
+        .message-row.ai .message-bubble code { font-family: monospace; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; }
+        .message-row.ai .message-bubble pre code { background: none; padding: 0; }
+        .message-row.ai .message-bubble p { margin-top: 0; }
+        .message-row.ai .message-bubble img { max-width: 100%; height: auto; max-height: 280px; border-radius: 8px; object-fit: contain; display: block; margin: 8px 0; }
+        .message-row.ai .message-bubble .msg-audio-wrap { margin: 10px 0; }
+        .message-row.ai .message-bubble .msg-audio { width: 100%; max-width: 320px; height: 40px; display: block; }
+        .message-row.ai .message-bubble .msg-audio-label { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .message-row.ai .message-bubble .msg-cite { margin: 10px 0; padding: 10px 14px; background: #f0f7ff; border-left: 4px solid var(--primary); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--text-secondary); }
+        .message-row.ai .message-bubble .msg-cite-label { font-weight: 600; color: var(--primary); }
+        .message-row.ai .message-bubble .msg-cite a { color: var(--primary); }
+        .message-row.ai .message-bubble .msg-search { margin: 10px 0; padding: 10px 14px; background: #f8fafc; border-radius: 8px; font-size: 13px; }
+        .message-row.ai .message-bubble .msg-search-label { font-weight: 600; color: var(--text-main); display: block; margin-bottom: 6px; }
+        .message-row.ai .message-bubble .msg-search-list { margin: 0; padding-left: 18px; }
+        .message-row.ai .message-bubble .msg-search-list li { margin-bottom: 6px; }
+        .message-row.ai .message-bubble .msg-search-list a { color: var(--primary); }
+        
+        .msg-actions { display: flex; gap: 8px; margin-top: 8px; opacity: 0.7; }
+        
+        /* Input Box */
+        .input-container { padding: 0 max(24px, var(--safe-right)) max(24px, var(--safe-bottom)) max(24px, var(--safe-left)); flex-shrink: 0; background: var(--bg-color); }
+        .input-box { display: flex; align-items: center; gap: 8px; background: var(--surface); padding: 8px 12px 8px 16px; border-radius: 32px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        #user-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 12px 4px; font-family: inherit; font-size: 16px; resize: none; max-height: 150px; min-height: 48px; height: 48px; line-height: 24px; box-sizing: border-box; color: var(--text-main); overflow-y: auto; }
+        #user-input::placeholder { line-height: 24px; }
+        .action-btn { background: #f0f4f9; color: var(--text-main); border: none; min-width: var(--touch-min); min-height: var(--touch-min); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+        .action-btn.gen-menu-btn:hover { background: #e8eaed; }
+        .gen-context-menu { position: absolute; bottom: 100%; left: 0; margin-bottom: 8px; background: var(--surface); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 8px; min-width: 200px; z-index: 30; display: none; flex-direction: column; gap: 2px; }
+        .gen-context-menu.open { display: flex; }
+        .gen-context-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: none; background: none; border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--text-main); cursor: pointer; text-align: left; transition: background 0.15s; }
+        .gen-context-menu button:hover { background: #f0f4f9; }
+        .gen-context-menu button.active { background: #e8f0fe; color: var(--primary); }
+        .gen-context-menu button .material-symbols-outlined { font-size: 20px; }
+        .input-box-wrap { position: relative; display: flex; align-items: center; flex-shrink: 0; }
+        .gen-mode-indicator { display: none; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #e8f0fe; color: var(--primary); flex-shrink: 0; }
+        .gen-mode-indicator.visible { display: flex; }
+        .gen-mode-indicator .material-symbols-outlined { font-size: 18px; }
+        .action-btn.send { background: var(--primary); color: white; }
+        .action-btn.stop { background: #d93025; color: white; }
+        .action-btn.mic { background: #f0f4f9; color: var(--text-main); }
+        .action-btn.mic:hover:not(:disabled) { background: #e8eaed; }
+        .action-btn.mic.recording { background: #d93025; color: white; animation: pulse-mic 1.2s ease-in-out infinite; }
+        @keyframes pulse-mic { 50% { opacity: 0.85; } }
+        .action-btn:disabled { background: transparent; color: #ccc; cursor: not-allowed; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        .welcome-msg { text-align: center; color: var(--text-secondary); margin: auto; font-size: 1.1rem; }
+        .welcome-msg .welcome-model-title { font-size: 22px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-secondary); margin-bottom: 16px; }
+        .welcome-msg .welcome-model-title .material-symbols-outlined { color: #d93025; font-size: 28px; }
+        .welcome-msg .disclaimer { font-size: 12px; opacity: 0.75; max-width: 320px; line-height: 1.5; margin: 0 auto; }
+
+        /* Recording indicator */
+        .voice-recording-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #d93025; margin-bottom: 6px; }
+        .voice-recording-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: #d93025; animation: recording-blink 1s ease-in-out infinite; }
+        @keyframes recording-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* Slim model loading bar (background load on reload) */
+        #model-loading-bar { display: none; align-items: center; gap: 12px; padding: 8px 24px; background: #e8f0fe; color: var(--primary); font-size: 13px; flex-shrink: 0; }
+        #model-loading-bar.visible { display: flex; }
+        #model-loading-bar .bar-fill { flex: 1; max-width: 200px; height: 6px; background: rgba(11,87,208,0.2); border-radius: 3px; overflow: hidden; }
+        #model-loading-bar .bar-fill div { height: 100%; background: var(--primary); transition: width 0.3s ease; width: 0%; }
+
+        /* Wikipedia image modal */
+        #wiki-image-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+        #wiki-image-overlay.visible { display: flex; }
+        #wiki-image-modal { background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); max-width: 420px; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        #wiki-image-modal .wiki-header { background: #2563eb; padding: 16px 20px; text-align: center; color: white; }
+        #wiki-image-modal .wiki-header h2 { margin: 0; font-size: 1.25rem; }
+        #wiki-image-modal .wiki-body { padding: 20px; overflow-y: auto; }
+        #wiki-image-modal .wiki-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        #wiki-image-modal .wiki-close:hover { background: rgba(255,255,255,0.3); }
+        .wiki-search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .wiki-search-row input { flex: 1; padding: 10px 14px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+        .wiki-search-row button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .wiki-search-row button:hover { background: #1d4ed8; }
+        #wiki-image-result { margin-top: 16px; display: none; text-align: center; }
+        #wiki-image-result img { max-width: 100%; max-height: 240px; border-radius: 8px; object-fit: contain; background: #f8fafc; }
+        #wiki-image-result .wiki-url-row { margin-top: 12px; display: flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; }
+        #wiki-image-result .wiki-url-row input { flex: 1; border: none; background: transparent; font-size: 12px; color: #475569; }
+        #wiki-image-result .wiki-url-row button { background: none; border: none; color: #2563eb; cursor: pointer; padding: 4px; }
+        #wiki-image-status { display: none; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        #wiki-image-status.loading { display: block; background: #dbeafe; color: #1d4ed8; }
+        #wiki-image-status.error { display: block; background: #fee2e2; color: #b91c1c; }
+
+        /* Audio modal (Trova audio) */
+        #wiki-audio-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+        #wiki-audio-overlay.visible { display: flex; }
+        #wiki-audio-modal { background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); max-width: 420px; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        #wiki-audio-modal .wiki-audio-header { background: #0d9488; padding: 16px 20px; text-align: center; color: white; position: relative; }
+        #wiki-audio-modal .wiki-audio-header h2 { margin: 0; font-size: 1.25rem; }
+        #wiki-audio-modal .wiki-audio-body { padding: 20px; overflow-y: auto; }
+        #wiki-audio-modal .wiki-audio-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .wiki-audio-search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .wiki-audio-search-row input { flex: 1; padding: 10px 14px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+        .wiki-audio-search-row button { background: #0d9488; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        #wiki-audio-result { margin-top: 16px; display: none; }
+        #wiki-audio-result audio { width: 100%; max-width: 100%; margin-bottom: 8px; }
+        #wiki-audio-result .wiki-audio-url-row { margin-top: 12px; display: flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; }
+        #wiki-audio-result .wiki-audio-url-row input { flex: 1; border: none; background: transparent; font-size: 12px; color: #475569; }
+        #wiki-audio-status { display: none; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        #wiki-audio-status.loading { display: block; background: #ccfbf1; color: #0f766e; }
+        #wiki-audio-status.error { display: block; background: #fee2e2; color: #b91c1c; }
+
+        /* ---------- Mobile (iOS-focused, enterprise) ---------- */
+        @media (max-width: 768px) {
+            html { overflow: hidden; height: 100%; overscroll-behavior: none; }
+            body { flex-direction: column; min-height: 0; overflow: hidden; overscroll-behavior: none; }
+            .app-wrap { width: 100%; min-width: 0; min-height: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+            .app-wrap > main { min-height: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+            .sidebar { position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; width: min(320px, 85vw); max-width: 320px; min-width: 0; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.3s; box-shadow: none; padding-top: var(--safe-top); }
+            .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+            .sidebar-backdrop { display: block; pointer-events: none; }
+            .sidebar-backdrop.visible { pointer-events: auto; }
+            .hamburger { display: flex; }
+            header { padding: 10px 16px; padding-top: max(10px, var(--safe-top)); padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+            header .logo { display: none; }
+            .new-chat-btn .new-chat-btn-label { display: none; }
+            .logo { font-size: 18px; }
+            .controls { gap: 8px; flex: 1; min-width: 0; justify-content: flex-end; }
+            .new-chat-btn { padding: 10px 14px; font-size: 13px; min-height: var(--touch-min); }
+            .model-select-wrap { min-width: 0; flex: 1; max-width: 180px; }
+            .model-select-trigger { padding: 10px 12px; font-size: 13px; min-height: var(--touch-min); }
+            main { padding: 0; max-width: none; }
+            #chat-history { padding: 16px; padding-bottom: 24px; gap: 20px; }
+            .message-bubble { max-width: 92%; }
+            .message-row.user .message-bubble { padding: 12px 16px; }
+            .message-row.ai .message-bubble { padding: 0 4px; }
+            .input-container { padding: 12px 16px; padding-bottom: max(12px, var(--safe-bottom)); padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
+            .input-box { padding: 6px 12px; border-radius: 24px; }
+            #user-input { font-size: 16px; min-height: var(--touch-min); padding: 10px 0; }
+            .icon-btn { min-width: var(--touch-min); min-height: var(--touch-min); padding: 10px; }
+            .loader-card { margin: 16px; padding: 24px; border-radius: 16px; }
+            #model-loading-bar { padding: 8px 16px; padding-left: max(16px, var(--safe-left)); }
+            .model-select-dropdown { max-height: 60vh; left: 8px; right: 8px; width: auto; }
+            #wiki-image-overlay, #wiki-audio-overlay { padding: 16px; padding-top: max(16px, var(--safe-top)); padding-bottom: max(16px, var(--safe-bottom)); align-items: flex-end; }
+            #wiki-image-modal, #wiki-audio-modal { max-width: none; width: 100%; max-height: 85vh; max-height: 85dvh; border-radius: 16px 16px 0 0; }
+            .wiki-search-row, .wiki-audio-search-row { flex-direction: column; }
+            .wiki-audio-search-row button { width: 100%; justify-content: center; min-height: var(--touch-min); }
+            .wiki-search-row button { width: 100%; justify-content: center; min-height: var(--touch-min); }
+            .chat-item { padding: 12px 16px; min-height: var(--touch-min); }
+            .chat-item .chat-item-delete { min-width: var(--touch-min); min-height: var(--touch-min); opacity: 1; pointer-events: auto; }
+            .chat-item:hover .chat-item-delete { opacity: 1; }
+        }
+
+        @media (max-width: 480px) {
+            .controls .new-chat-btn span:not(.material-symbols-outlined) { display: none; }
+            .model-select-wrap { max-width: 140px; }
+            .trigger-label { font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop" aria-hidden="true"></div>
+    <aside class="sidebar" id="sidebar" aria-label="Elenco chat">
+        <div class="sidebar-header">
+            <div class="sidebar-title">
+                <span class="material-symbols-outlined" style="font-size: 20px;">forum</span>
+                Chat
+            </div>
+            <button id="btn-new-chat-sidebar" class="new-chat-btn">
+                <span class="material-symbols-outlined">add</span><span class="new-chat-btn-label">Nuova Chat</span>
+            </button>
+        </div>
+        <div id="chat-list" class="chat-list"></div>
+    </aside>
+
+    <div class="app-wrap">
+    <header>
+        <button type="button" class="hamburger" id="btn-hamburger" aria-label="Apri menu chat" aria-expanded="false">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="logo">
+            <span class="material-symbols-outlined">temp_preferences_custom</span>
+            <span id="header-model-title">Local AI</span>
+        </div>
+        <div class="controls">
+            <div class="model-select-wrap" id="model-select-wrap">
+                <button type="button" class="model-select-trigger" id="model-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="trigger-label" id="model-select-trigger-label">Seleziona modello</span>
+                    <span class="material-symbols-outlined trigger-icon" style="font-size: 20px;">expand_more</span>
+                </button>
+                <div class="model-select-dropdown" id="model-select-dropdown" role="listbox" aria-label="Seleziona modello"></div>
+                <select id="model-select" aria-hidden="true" style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px;"></select>
+            </div>
+        </div>
+    </header>
+    <div id="model-loading-bar">
+        <span class="material-symbols-outlined" style="font-size: 18px;">progress_activity</span>
+        <span id="model-loading-text">Caricamento modello...</span>
+        <div class="bar-fill"><div id="model-loading-progress"></div></div>
+    </div>
+
+    <div id="setup-overlay" class="hidden">
+        <div class="loader-card">
+            <h2 id="overlay-title">Avvia Motore AI</h2>
+            <p id="status-text">Inizializzazione del modello locale...</p>
+            <div id="progress-bg"><div id="progress-fill"></div></div>
+            <button id="btn-load" class="primary-btn">Carica Modello Testuale</button>
+        </div>
+    </div>
+
+    <main>
+        <div id="chat-history">
+            <div class="welcome-msg" id="welcome-msg">
+                <div class="welcome-model-title">
+                    <span class="material-symbols-outlined">temp_preferences_custom</span>
+                    <span id="welcome-model">—</span>
+                </div>
+                <p class="disclaimer">I dati non vengono salvati su server. Le chat e le preferenze restano sul tuo dispositivo. I modelli AI girano in locale.</p>
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <div id="voice-recording-indicator" class="voice-recording-indicator" style="display: none;" aria-live="polite">
+                <span class="dot"></span>
+                <span>In ascolto...</span>
+            </div>
+            <div class="input-box">
+                <div class="input-box-wrap">
+                    <button id="btn-gen-menu" class="action-btn gen-menu-btn" type="button" title="Menu funzioni (immagine, audio, calcolo, cerca)" aria-haspopup="true" aria-expanded="false">
+                        <span class="material-symbols-outlined">add</span>
+                    </button>
+                    <div id="gen-context-menu" class="gen-context-menu" role="menu" aria-label="Funzioni">
+                        <button type="button" role="menuitem" data-gen="image"><span class="material-symbols-outlined">image</span> Richiedi immagine</button>
+                        <button type="button" role="menuitem" data-gen="audio"><span class="material-symbols-outlined">graphic_eq</span> Richiedi audio</button>
+                        <button type="button" role="menuitem" id="gen-menu-calc" data-gen="calc"><span class="material-symbols-outlined">calculate</span> Calcolo</button>
+                        <button type="button" role="menuitem" id="gen-menu-search" data-gen="search"><span class="material-symbols-outlined">search</span> Cerca sul web</button>
+                    </div>
+                </div>
+                <span id="gen-mode-indicator" class="gen-mode-indicator" aria-hidden="true" title="Modalità attiva"><span class="material-symbols-outlined" id="gen-mode-indicator-icon"></span></span>
+                <textarea id="user-input" rows="1" placeholder="Scrivi un messaggio..."></textarea>
+                <button id="btn-mic" class="action-btn mic" type="button" title="Registra voce (speech-to-text)">
+                    <span class="material-symbols-outlined" id="mic-icon">mic</span>
+                </button>
+                <button id="btn-action" class="action-btn send" disabled>
+                    <span class="material-symbols-outlined" id="action-icon">send</span>
+                </button>
+            </div>
+        </div>
+    </main>
+    </div>
+
+    <!-- Modal Trova audio (Openverse + Commons) -->
+    <div id="wiki-audio-overlay">
+        <div id="wiki-audio-modal">
+            <div class="wiki-audio-header" style="position: relative;">
+                <button type="button" class="wiki-audio-close" id="wiki-audio-close" aria-label="Chiudi">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                </button>
+                <span class="material-symbols-outlined" style="font-size: 28px; margin-bottom: 4px;">graphic_eq</span>
+                <h2>Trova audio</h2>
+                <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Cerca musica o suoni (Openverse, Commons)</p>
+            </div>
+            <div class="wiki-audio-body">
+                <div class="wiki-audio-search-row">
+                    <input type="text" id="wiki-audio-search-input" placeholder="Es: thunder, piano jazz, birds..." />
+                    <button type="button" id="wiki-audio-search-btn">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">search</span> Cerca
+                    </button>
+                </div>
+                <div id="wiki-audio-status"></div>
+                <div id="wiki-audio-result">
+                    <audio id="wiki-audio-player" controls preload="metadata"></audio>
+                    <div class="wiki-audio-url-row" style="margin-top: 12px;">
+                        <input type="text" id="wiki-audio-result-url" readonly />
+                        <button type="button" id="wiki-audio-copy-url" title="Copia link">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Trova immagine Wikipedia -->
+    <div id="wiki-image-overlay">
+        <div id="wiki-image-modal">
+            <div class="wiki-header" style="position: relative;">
+                <button type="button" class="wiki-close" id="wiki-image-close" aria-label="Chiudi">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                </button>
+                <i class="fab fa-wikipedia-w" style="font-size: 28px; margin-bottom: 4px;"></i>
+                <h2>Trova immagine Wiki</h2>
+                <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Cerca una voce Wikipedia per vedere la sua immagine</p>
+            </div>
+            <div class="wiki-body">
+                <div class="wiki-search-row">
+                    <input type="text" id="wiki-search-input" placeholder="Es: Elefante, Colosseo..." />
+                    <button type="button" id="wiki-search-btn">
+                        <i class="fas fa-search"></i> Cerca
+                    </button>
+                </div>
+                <div id="wiki-image-status"></div>
+                <div id="wiki-image-result">
+                    <img id="wiki-result-img" src="" alt="Immagine Wikipedia" />
+                    <div class="wiki-url-row" style="margin-top: 12px;">
+                        <input type="text" id="wiki-result-url" readonly />
+                        <button type="button" id="wiki-copy-url" title="Copia link">
+                            <i class="far fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+    // Utilizziamo esm.run per caricare web-llm, che è generalmente più stabile per la risoluzione dei path interni.
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    const MODEL_LIST = [
+        { id: 'SmolLM2-135M-Instruct-q4f16_1-MLC', label: 'SmolLM2 135M', size: '~150 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
+        { id: 'SmolLM2-360M-Instruct-q4f16_1-MLC', label: 'SmolLM2 360M', size: '~350 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
+        { id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', label: 'Qwen 2.5 0.5B', size: '~400 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
+        { id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', label: 'Llama 3.2 1B', size: '~800 MB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        { id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', label: 'Qwen 2.5 1.5B', size: '~1 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        { id: 'gemma-2b-it-q4f16_1-MLC', label: 'Google Gemma 2B', size: '~1.5 GB', group: 'Medi (Bilanciati, 800MB-2GB)' }
+    ];
+    const STORAGE_DOWNLOADED_MODELS = 'webllm_downloaded_models';
+    function getDownloadedModels() {
+        try {
+            const raw = localStorage.getItem(STORAGE_DOWNLOADED_MODELS);
+            return raw ? JSON.parse(raw) : [];
+        } catch (_) { return []; }
+    }
+    function addDownloadedModel(modelId) {
+        const set = new Set(getDownloadedModels());
+        set.add(modelId);
+        localStorage.setItem(STORAGE_DOWNLOADED_MODELS, JSON.stringify([...set]));
+    }
+
+    let engine = null;
+    let isGenerating = false;
+    let pendingMessage = null;  // user message sent before model loaded
+    let currentSpeechBubble = null;
+    let currentAudioPlayback = null;
+    let bestBrowserVoice = null;
+    let ttsCancelled = false;
+
+    function stopSpeech() {
+        ttsCancelled = true;
+        speechSynthesis.cancel();
+        if (currentAudioPlayback) {
+            currentAudioPlayback.pause();
+            currentAudioPlayback.currentTime = 0;
+            currentAudioPlayback = null;
+        }
+        if (currentSpeechBubble) {
+            currentSpeechBubble.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">volume_up</span>';
+            currentSpeechBubble = null;
+        }
+    }
+
+    function getBestBrowserVoice() {
+        const voices = speechSynthesis.getVoices();
+        const it = voices.filter(v => v.lang.startsWith('it'));
+        const preferred = it.find(v => /natural|google|premium|eloquent|online/i.test(v.name));
+        return preferred || it[0] || voices.find(v => v.lang.startsWith('it')) || voices[0];
+    }
+
+    function speakWithBrowser(text, speakBtn) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'it-IT';
+        u.rate = 0.95;
+        u.pitch = 1;
+        if (bestBrowserVoice) u.voice = bestBrowserVoice;
+        currentSpeechBubble = speakBtn;
+        speakBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">stop</span>';
+        u.onend = u.onerror = () => {
+            currentSpeechBubble = null;
+            speakBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">volume_up</span>';
+        };
+        speechSynthesis.speak(u);
+    }
+
+    const systemPrompt = { role: "system", content: `You are a helpful, capable AI assistant. Use Markdown in your replies. Respond in the same language the user writes in (e.g. Italian, English, etc.).
+
+**Image requests:** When the user asks for an image, a photo, or to search/show/find/generate an image of something (in any language), include exactly this token in your reply: [GEN_IMAGE: subject]
+ where "subject" is the Wikipedia page title to look up. Prefer the **English** Wikipedia page name (e.g. Elephant, Colosseum, Rome) because English Wikipedia has more pages and images; if the user wrote in another language, use the English equivalent for the token and keep your surrounding text in the user's language. Example (user in Italian): "Ecco un'immagine del Colosseo: [GEN_IMAGE: Colosseum]" or "[GEN_IMAGE: Elephant] Ecco un elefante." You may write a sentence before or after the token. If the request is vague ("show me an image") ask what they want or use an example subject.
+**Abstract or category requests:** If the user asks for an image of something generic (e.g. "a son of Zeus", "a Greek god", "a savanna animal"), never use generic words like son, child, god, animal as the subject: choose a concrete example that has a Wikipedia page and put it in [GEN_IMAGE: ...], preferably in English (e.g. [GEN_IMAGE: Apollo], [GEN_IMAGE: Hercules], [GEN_IMAGE: Ares]); never [GEN_IMAGE: son] or [GEN_IMAGE: child].
+**Subtype or category:** If the user specifies a type (e.g. "water Pokemon", "uccello rapace"), the subject in [GEN_IMAGE: ...] must match that type. For "water Pokemon" use e.g. [GEN_IMAGE: Squirtle] or [GEN_IMAGE: Gyarados] (water type); never [GEN_IMAGE: Pikachu] (electric). Use the exact Wikipedia page name in English when possible.
+
+**Audio requests:** When the user asks for audio, music, a song, or a sound effect (e.g. "play me music about X", "sound of thunder", "audio of birds", "musica di ..."), include exactly this token: [GEN_AUDIO: subject] where "subject" is a short search query in English (e.g. thunder, birds singing, piano jazz, Beethoven). Prefer **English** search terms. Example: "Ecco un brano: [GEN_AUDIO: piano classical]" or "[GEN_AUDIO: ocean waves] Ecco il suono del mare." You may write a sentence before or after. If the request is vague, ask or use an example subject. For music genres or artists use clear terms (e.g. [GEN_AUDIO: jazz], [GEN_AUDIO: Beethoven symphony]).
+
+**Cite sources:** When you state a factual claim (dates, definitions, historical events, scientific facts, biographies, places) add a citation so the user can verify. Include exactly: [CITE: topic] where "topic" is the Wikipedia page title in English (e.g. Colosseum, World War II, Albert Einstein). Prefer one [CITE: ...] per main claim, placed at the end of the relevant sentence or paragraph. Example: "Il Colosseo fu completato nell'80 d.C. [CITE: Colosseum]."
+
+**Web search (CRITICAL):** When the user says "search online for X", "search for X", "cerca X", "find X" they want a web search—not an image or audio. Your job is only to output the token [SEARCH: query] and a short intro; the app will show real results. Never reply "I'm unable to provide image/audio/multimedia" or "I don't have access to external sources" for a search request: instead output [SEARCH: query]. Example: User "search online for the winner of oscar 2025 best picture" → Reply "Ecco la ricerca: [SEARCH: Oscar 2025 best picture winner]." Use a short search phrase (e.g. "Oscar 2025 best picture", "ristoranti Milano"). Do NOT invent results; only output [SEARCH: query].
+
+**Calculations:** When the user asks to calculate, compute, or do math (e.g. "calcola 2+2", "quanto fa 15% di 80", "compute 3*4+1"), include exactly: [GEN_CALC: expression] where "expression" is a valid math expression using numbers, +, -, *, /, parentheses, and optionally ** for power. Example: "Il risultato è [GEN_CALC: 2+2*3]." or "15% di 80 = [GEN_CALC: 80*0.15]." Use only the expression inside the token (e.g. [GEN_CALC: 2+2], [GEN_CALC: (10+5)/3]). The app will replace it with the numeric result.
+
+The rules above apply when the user asks for an image, for audio, for a calculation, when you make a factual claim (use CITE), or when they ask to search (use SEARCH). Otherwise answer directly; do not repeat these instructions; respond in the user's language.` };
+    let messages = [systemPrompt];
+
+    // --- Image fetch: Openverse first (no key), then Wikipedia EN then other langs (no key), then Commons (no key) ---
+    async function fetchWikipediaImageFromLang(subject, lang) {
+        if (!subject || !String(subject).trim()) return null;
+        const term = String(subject).trim();
+        const formatted = term.charAt(0).toUpperCase() + term.slice(1).toLowerCase();
+        try {
+            const urlApi = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formatted)}`;
+            const response = await fetch(urlApi);
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (data.originalimage && data.originalimage.source) return data.originalimage.source;
+            if (data.thumbnail && data.thumbnail.source) return data.thumbnail.source;
+            return null;
+        } catch (_) { return null; }
+    }
+    async function fetchWikipediaImage(subject) {
+        const urlEn = await fetchWikipediaImageFromLang(subject, 'en');
+        if (urlEn) return urlEn;
+        return await fetchWikipediaImageFromLang(subject, 'it');
+    }
+
+    async function fetchOpenverseImage(subject) {
+        if (!subject || !String(subject).trim()) return null;
+        const q = encodeURIComponent(String(subject).trim());
+        try {
+            const res = await fetch(`https://api.openverse.org/v1/images/?q=${q}&page_size=1`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const url = data.results && data.results[0] && data.results[0].url;
+            return url || null;
+        } catch (_) { return null; }
+    }
+
+    async function fetchCommonsImage(subject) {
+        if (!subject || !String(subject).trim()) return null;
+        const q = encodeURIComponent(String(subject).trim());
+        try {
+            const searchUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=1&format=json`;
+            const searchRes = await fetch(searchUrl);
+            if (!searchRes.ok) return null;
+            const searchData = await searchRes.json();
+            const hits = searchData.query && searchData.query.search;
+            if (!hits || hits.length === 0) return null;
+            const fileTitle = hits[0].title;
+            const infoUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json`;
+            const infoRes = await fetch(infoUrl);
+            if (!infoRes.ok) return null;
+            const infoData = await infoRes.json();
+            const pages = infoData.query && infoData.query.pages;
+            const pageId = Object.keys(pages || {})[0];
+            const url = pages && pages[pageId] && pages[pageId].imageinfo && pages[pageId].imageinfo[0] && pages[pageId].imageinfo[0].url;
+            return url || null;
+        } catch (_) { return null; }
+    }
+
+    async function fetchImageForSubject(subject) {
+        let url = await fetchOpenverseImage(subject);
+        if (url) return url;
+        url = await fetchWikipediaImage(subject);
+        if (url) return url;
+        url = await fetchCommonsImage(subject);
+        return url || null;
+    }
+
+    // --- CITE: Wikipedia summary (extract + link), EN then IT, no key ---
+    async function fetchCiteFromLang(topic, lang) {
+        if (!topic || !String(topic).trim()) return null;
+        const term = String(topic).trim();
+        const formatted = term.charAt(0).toUpperCase() + term.slice(1).toLowerCase().replace(/\s+/g, ' ');
+        try {
+            const urlApi = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(formatted)}`;
+            const response = await fetch(urlApi);
+            if (!response.ok) return null;
+            const data = await response.json();
+            const extract = (data.extract && data.extract.trim()) || null;
+            const url = (data.content_urls && data.content_urls.desktop && data.content_urls.desktop.page) || null;
+            if (extract && url) return { extract: extract.slice(0, 500), url };
+            if (extract) return { extract: extract.slice(0, 500), url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(formatted.replace(/\s/g, '_'))}` };
+            return null;
+        } catch (_) { return null; }
+    }
+    async function fetchCite(topic) {
+        const en = await fetchCiteFromLang(topic, 'en');
+        if (en) return en;
+        return await fetchCiteFromLang(topic, 'it');
+    }
+
+    // --- SEARCH: Try DuckDuckGo Instant Answer API first; when empty, fetch DuckDuckGo HTML search via proxy and parse results so we can show them in the app. ---
+    async function fetchSearch(query) {
+        if (!query || !String(query).trim()) return [];
+        const q = encodeURIComponent(String(query).trim());
+        const url = `https://api.duckduckgo.com/?q=${q}&format=json`;
+        const safeUrl = (u) => { const s = (u || '').trim(); return (s.startsWith('http://') || s.startsWith('https://')) ? s : null; };
+        function parseDdgResponse(data) {
+            const results = [];
+            if (data.Abstract && safeUrl(data.AbstractURL)) {
+                results.push({ title: data.Heading || data.Abstract.slice(0, 60), snippet: data.Abstract, url: data.AbstractURL });
+            }
+            const related = data.RelatedTopics || [];
+            for (const r of related) {
+                if (results.length >= 5) break;
+                const u = safeUrl(r.FirstURL);
+                if (u && r.Text) results.push({ title: r.Text.slice(0, 60), snippet: r.Text, url: u });
+            }
+            return results;
+        }
+        try {
+            const res = await fetch(url);
+            if (!res.ok) return [];
+            const data = await res.json();
+            const apiResults = parseDdgResponse(data);
+            if (apiResults.length > 0) return apiResults;
+        } catch (_) {}
+        try {
+            const proxyRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+            if (proxyRes.ok) {
+                const data = await proxyRes.json();
+                const apiResults = parseDdgResponse(data);
+                if (apiResults.length > 0) return apiResults;
+            }
+        } catch (_) {}
+        return await fetchSearchHtmlFallback(query);
+    }
+
+    async function fetchSearchHtmlFallback(query) {
+        if (!query || !String(query).trim()) return [];
+        const q = encodeURIComponent(String(query).trim());
+        const htmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
+        try {
+            const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(htmlUrl)}`);
+            if (!res.ok) return [];
+            const html = await res.text();
+            const results = [];
+            const blockRegex = /class="[^"]*result__body[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+            let block;
+            while ((block = blockRegex.exec(html)) !== null && results.length < 6) {
+                const frag = block[1];
+                const titleM = /class="[^"]*result__title[^"]*"[^>]*>[\s\S]*?<a[^>]+href="[^"]*uddg=([^&"']+)[^"]*"[^>]*>([^<]*)<\/a>/i.exec(frag) || /<h2[^>]*>([^<]*)<\/h2>/i.exec(frag);
+                const urlM = /href="[^"]*uddg=([^&"']+)/.exec(frag);
+                const snippetM = /class="[^"]*result__snippet[^"]*"[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i.exec(frag);
+                if (!urlM) continue;
+                try {
+                    const url = decodeURIComponent(urlM[1].replace(/\+/g, ' '));
+                    if (!url.startsWith('http')) continue;
+                    const title = (titleM ? (titleM[2] || titleM[1] || '').trim() : '').replace(/<[^>]+>/g, '').replace(/&\w+;/g, ' ').slice(0, 80) || 'Risultato';
+                    const snippet = (snippetM && snippetM[1] ? snippetM[1].trim() : title).replace(/<[^>]+>/g, ' ').replace(/&\w+;/g, ' ').replace(/\s+/g, ' ').slice(0, 150);
+                    results.push({ title, snippet, url });
+                } catch (_) {}
+            }
+            if (results.length === 0) {
+                const uddgRegex = /uddg=([^&"'\s]+)/g;
+                const urls = [];
+                let m;
+                while ((m = uddgRegex.exec(html)) !== null) {
+                    try {
+                        const realUrl = decodeURIComponent(m[1].replace(/\+/g, ' '));
+                        if (realUrl.startsWith('http')) urls.push(realUrl);
+                    } catch (_) {}
+                }
+                const h2Regex = /<h2[^>]*>([^<]*)<\/h2>/gi;
+                let idx = 0;
+                while ((m = h2Regex.exec(html)) !== null && idx < urls.length) {
+                    const title = (m[1] || '').trim().replace(/<[^>]+>/g, '').replace(/&\w+;/g, ' ').slice(0, 80);
+                    if (title && urls[idx]) results.push({ title, snippet: title, url: urls[idx] });
+                    idx++;
+                }
+            }
+            return results.slice(0, 6);
+        } catch (_) { return []; }
+    }
+
+    // --- Audio fetch: Openverse first (no key), then Wikimedia Commons (no key) ---
+    async function fetchOpenverseAudio(subject) {
+        if (!subject || !String(subject).trim()) return null;
+        const q = encodeURIComponent(String(subject).trim());
+        try {
+            const res = await fetch(`https://api.openverse.org/v1/audio/?q=${q}&page_size=1`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const url = data.results && data.results[0] && data.results[0].url;
+            return url || null;
+        } catch (_) { return null; }
+    }
+
+    async function fetchCommonsAudio(subject) {
+        if (!subject || !String(subject).trim()) return null;
+        const q = encodeURIComponent(String(subject).trim());
+        try {
+            const searchUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=5&format=json`;
+            const searchRes = await fetch(searchUrl);
+            if (!searchRes.ok) return null;
+            const searchData = await searchRes.json();
+            const hits = searchData.query && searchData.query.search;
+            if (!hits || hits.length === 0) return null;
+            const audioSuffixes = /\.(ogg|mp3|wav|webm|flac|m4a)(\s|$)/i;
+            for (const hit of hits) {
+                if (audioSuffixes.test(hit.title)) {
+                    const infoUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(hit.title)}&prop=imageinfo&iiprop=url&format=json`;
+                    const infoRes = await fetch(infoUrl);
+                    if (!infoRes.ok) continue;
+                    const infoData = await infoRes.json();
+                    const pages = infoData.query && infoData.query.pages;
+                    const pageId = Object.keys(pages || {})[0];
+                    const url = pages && pages[pageId] && pages[pageId].imageinfo && pages[pageId].imageinfo[0] && pages[pageId].imageinfo[0].url;
+                    if (url) return url;
+                }
+            }
+            const firstTitle = hits[0].title;
+            const infoUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(firstTitle)}&prop=imageinfo&iiprop=url&format=json`;
+            const infoRes = await fetch(infoUrl);
+            if (!infoRes.ok) return null;
+            const infoData = await infoRes.json();
+            const pages = infoData.query && infoData.query.pages;
+            const pageId = Object.keys(pages || {})[0];
+            return (pages && pages[pageId] && pages[pageId].imageinfo && pages[pageId].imageinfo[0] && pages[pageId].imageinfo[0].url) || null;
+        } catch (_) { return null; }
+    }
+
+    async function fetchAudioForSubject(subject) {
+        let url = await fetchOpenverseAudio(subject);
+        if (url) return url;
+        url = await fetchCommonsAudio(subject);
+        return url || null;
+    }
+
+    // Known phrase -> single-word Wikipedia titles to try (exact page names).
+    const WIKI_IMAGE_FALLBACKS = {
+        'albero verde': ['Albero', 'Cipresso', 'Pino', 'Quercia'],
+        'un albero': ['Albero', 'Cipresso'],
+        'albero': ['Albero', 'Cipresso', 'Quercia']
+    };
+    function getFallbackTerms(subject) {
+        const key = subject.toLowerCase().trim();
+        if (WIKI_IMAGE_FALLBACKS[key]) return WIKI_IMAGE_FALLBACKS[key];
+        if (key.includes(' ')) return [key.split(/\s+/)[0].replace(/^\w/, c => c.toUpperCase())];
+        return [];
+    }
+
+    // Ask the AI for multiple alternative Wikipedia article titles, ordered from most specific to least specific. We try in this order to prefer quality.
+    async function getAlternativeWikiImageTerms(engine, subject, alreadyTried = []) {
+        if (!engine || !subject) return [];
+        const triedStr = alreadyTried.length
+            ? ` Already tried without success: ${alreadyTried.join(', ')}. Do NOT suggest these again.`
+            : '';
+        const prompt = `The Wikipedia image for "${subject}" was not found. Suggest 5-6 alternative English Wikipedia page titles that could show an image for the same request. CRITICAL: list them in order from MOST SPECIFIC (first line) to LEAST SPECIFIC / BROADEST (last line). Example for "cat": first line most specific (e.g. Felis catus or Cat), then Feline, then Kitten, then broader terms. For "water Pokemon" use only water-type (Squirtle, Gyarados, Magikarp), NOT Pikachu; order from most specific species to more general.${triedStr} Reply with exactly one [GEN_IMAGE: title] per line, 5-6 lines, most specific first. Use only valid Wikipedia page names. Nothing else.`;
+        try {
+            const out = await engine.chat.completions.create({
+                messages: [{ role: "user", content: prompt }],
+                stream: false,
+                max_tokens: 180
+            });
+            const raw = (out.choices[0]?.message?.content || "").trim();
+            const terms = [];
+            for (const m of raw.matchAll(/\[GEN_IMAGE:\s*([^\]]+)\]/gi)) {
+                const term = m[1].trim();
+                if (term && !triedIncludes(terms, term)) terms.push(term);
+            }
+            return terms;
+        } catch (_) { return []; }
+    }
+
+    function triedIncludes(tried, term) {
+        const n = (term || '').trim().toLowerCase();
+        return tried.some(t => (t || '').trim().toLowerCase() === n);
+    }
+
+    // Safe math eval: only numbers and + - * / ( ) . and spaces; ** for power.
+    function safeEvalCalc(expr) {
+        if (!expr || typeof expr !== 'string') return null;
+        const s = expr.trim().replace(/\s+/g, '');
+        if (!/^[\d.+\-*/()\s]+$/.test(s) || /\.\./.test(s)) return null;
+        try {
+            const val = new Function('return (' + s + ')')();
+            return typeof val === 'number' && isFinite(val) ? val : null;
+        } catch (_) { return null; }
+    }
+    function replaceGenCalcTokens(text) {
+        return text.replace(/\[GEN_CALC:\s*([^\]]+)\]/g, (_, expr) => {
+            const result = safeEvalCalc(expr.trim());
+            return result !== null ? String(result) : `*(errore calcolo: ${expr.trim().slice(0, 40)})*`;
+        });
+    }
+
+    // Remove media and grounding tokens from text so they are never shown as raw to the user.
+    function stripMediaTokens(text) {
+        if (!text || !String(text).trim()) return text;
+        return String(text)
+            .replace(/\[GEN_IMAGE:\s*[^\]]+\]/g, '')
+            .replace(/\[GEN_AUDIO:\s*[^\]]+\]/g, '')
+            .replace(/\[GEN_CALC:\s*[^\]]+\]/g, '')
+            .replace(/\[CITE:\s*[^\]]+\]/g, '')
+            .replace(/\[SEARCH:\s*[^\]]+\]/g, '')
+            .replace(/\s{2,}/g, ' ').trim();
+    }
+    function stripGenImageTokens(text) { return stripMediaTokens(text); }
+
+    async function getAlternativeAudioTerms(engine, subject, alreadyTried = []) {
+        if (!engine || !subject) return [];
+        const triedStr = alreadyTried.length ? ` Already tried: ${alreadyTried.join(', ')}. Do NOT suggest these again.` : '';
+        const prompt = `The audio for "${subject}" was not found. Suggest 5-6 alternative English search terms for music or sound (one per line). Be specific: e.g. "piano jazz", "thunder storm", "birds forest".${triedStr} Reply with exactly one [GEN_AUDIO: term] per line, 5-6 lines. Nothing else.`;
+        try {
+            const out = await engine.chat.completions.create({ messages: [{ role: "user", content: prompt }], stream: false, max_tokens: 120 });
+            const raw = (out.choices[0]?.message?.content || "").trim();
+            const terms = [];
+            for (const m of raw.matchAll(/\[GEN_AUDIO:\s*([^\]]+)\]/gi)) {
+                const term = m[1].trim();
+                if (term && !triedIncludes(terms, term)) terms.push(term);
+            }
+            return terms;
+        } catch (_) { return []; }
+    }
+
+    async function replaceGenAudioTokens(text, engine = null) {
+        const regex = /\[GEN_AUDIO:\s*([^\]]+)\]/g;
+        const tokens = [...text.matchAll(regex)];
+        let out = text;
+        for (const t of tokens) {
+            const subject = t[1].trim();
+            let url = await fetchAudioForSubject(subject);
+            let replacementSubject = subject;
+            const tried = [subject];
+            if (!url) {
+                const firstWord = subject.includes(' ') ? subject.split(/\s+/)[0] : null;
+                if (firstWord && !triedIncludes(tried, firstWord)) {
+                    tried.push(firstWord);
+                    url = await fetchAudioForSubject(firstWord);
+                    if (url) replacementSubject = firstWord;
+                }
+            }
+            if (!url && engine) {
+                const altTerms = await getAlternativeAudioTerms(engine, subject, tried);
+                for (const term of altTerms) {
+                    if (triedIncludes(tried, term)) continue;
+                    tried.push(term);
+                    const url2 = await fetchAudioForSubject(term);
+                    if (url2) { url = url2; replacementSubject = term; break; }
+                }
+            }
+            const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const replacement = url
+                ? `<div class="msg-audio-wrap"><audio controls preload="metadata" src="${url}" class="msg-audio"></audio><span class="msg-audio-label">${esc(replacementSubject)}</span></div>`
+                : `*(audio non trovato per: ${esc(subject)})*`;
+            out = out.replace(t[0], replacement);
+        }
+        return out;
+    }
+
+    // Replace [GEN_IMAGE: subject] with markdown image; retry with first-word fallback, hardcoded fallbacks, then AI (one call returning multiple alternatives to try).
+    async function replaceWikiImageTokens(text, engine = null) {
+        const regex = /\[GEN_IMAGE:\s*([^\]]+)\]/g;
+        const tokens = [...text.matchAll(regex)];
+        let out = text;
+        for (const t of tokens) {
+            const subject = t[1].trim();
+            let url = await fetchImageForSubject(subject);
+            let replacementSubject = subject;
+            const tried = [subject];
+
+            if (!url) {
+                const firstWordRaw = subject.includes(' ') ? subject.split(/\s+/)[0] : null;
+                const firstWord = firstWordRaw ? firstWordRaw.charAt(0).toUpperCase() + firstWordRaw.slice(1).toLowerCase() : null;
+                if (firstWord && !triedIncludes(tried, firstWord)) {
+                    tried.push(firstWord);
+                    url = await fetchImageForSubject(firstWord);
+                    if (url) replacementSubject = firstWord;
+                }
+            }
+            if (!url) {
+                const fallbacks = getFallbackTerms(subject);
+                for (const term of fallbacks) {
+                    if (triedIncludes(tried, term)) continue;
+                    tried.push(term);
+                    url = await fetchImageForSubject(term);
+                    if (url) { replacementSubject = term; break; }
+                }
+            }
+            if (!url && engine) {
+                const altTerms = await getAlternativeWikiImageTerms(engine, subject, tried);
+                for (const term of altTerms) {
+                    if (triedIncludes(tried, term)) continue;
+                    tried.push(term);
+                    const url2 = await fetchImageForSubject(term);
+                    if (url2) {
+                        url = url2;
+                        replacementSubject = term;
+                        break;
+                    }
+                }
+            }
+            const replacement = url
+                ? `![${replacementSubject}](${url})`
+                : `*(immagine non trovata per: ${subject})*`;
+            out = out.replace(t[0], replacement);
+        }
+        return out;
+    }
+    async function replaceWikiImageTokensToHtml(text, engine = null) {
+        const out = await replaceWikiImageTokens(text, engine);
+        return marked.parse(out);
+    }
+
+    async function replaceCiteTokens(text) {
+        const regex = /\[CITE:\s*([^\]]+)\]/g;
+        const tokens = [...text.matchAll(regex)];
+        let out = text;
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        for (const t of tokens) {
+            const topic = t[1].trim();
+            const cite = await fetchCite(topic);
+            const replacement = cite
+                ? `<div class="msg-cite"><span class="msg-cite-label">Fonte:</span> <a href="${cite.url}" target="_blank" rel="noopener">Wikipedia</a> — ${esc(cite.extract)}</div>`
+                : `*(fonte non trovata per: ${esc(topic)})*`;
+            out = out.replace(t[0], replacement);
+        }
+        return out;
+    }
+
+    function isSearchIntent(text) {
+        if (!text || !String(text).trim()) return false;
+        const t = text.trim().toLowerCase();
+        return /^(search|search for|search online|cerca|cercami|find|look up|trova|cerco)\b/i.test(t) || /\b(search|cerca|find|look up)\s+(for|online)?/i.test(t);
+    }
+    function extractSearchQuery(text) {
+        if (!text || !String(text).trim()) return '';
+        let q = text.trim()
+            .replace(/^(search\s+for|search\s+online\s+for|search\s+online|search\s+)\s*/gi, '')
+            .replace(/^(cerca\s+di\s+|cercami\s+|cerca\s+)\s*/gi, '')
+            .replace(/^(find\s+|look\s+up\s+)\s*/gi, '')
+            .replace(/^(trova\s+|cerco\s+)\s*/gi, '')
+            .replace(/\bresturant\b/gi, 'restaurant')
+            .trim();
+        if (!q) q = text.trim();
+        if (/place(s)?\s+to\s+eat\s+in\s+/i.test(q)) q = q.replace(/place(s)?\s+to\s+eat\s+in\s+/gi, 'ristoranti ');
+        if (/where\s+to\s+eat\s+in\s+/i.test(q)) q = q.replace(/where\s+to\s+eat\s+in\s+/gi, 'dove mangiare ');
+        if (/(the\s+)?best\s+restaurant(s)?\s+in\s+/i.test(q)) q = q.replace(/(the\s+)?best\s+restaurant(s)?\s+in\s+/gi, 'migliori ristoranti ');
+        if (/restaurant(s)?\s+in\s+/i.test(q)) q = q.replace(/restaurant(s)?\s+in\s+/gi, 'ristoranti ');
+        if (/^(the|a|an)\s+/i.test(q)) q = q.replace(/^(the|a|an)\s+/i, '');
+        q = q.trim();
+        return q.slice(0, 120);
+    }
+    function buildSearchResultsHtml(results, query) {
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        if (!results || results.length === 0) {
+            const q = encodeURIComponent(query);
+            const ddgSearch = `https://duckduckgo.com/?q=${q}`;
+            const googleSearch = `https://www.google.com/search?q=${q}`;
+            const isPlaceQuery = /ristorant|mangiare|hotel|dove\s+mangiare|migliori\s+ristorant|place\s+to\s+eat|maps|mappa/i.test(query);
+            let links = `<a href="${ddgSearch}" target="_blank" rel="noopener">Cerca su DuckDuckGo</a> · <a href="${googleSearch}" target="_blank" rel="noopener">Cerca su Google</a>`;
+            if (isPlaceQuery) {
+                const mapsSearch = `https://www.google.com/maps/search/${q}`;
+                links += ` · <a href="${mapsSearch}" target="_blank" rel="noopener">Google Maps</a>`;
+            }
+            return `<div class="msg-search"><span class="msg-search-label">Risultati:</span> <em>L'app usa un'API limitata (DuckDuckGo Instant Answer) che spesso non restituisce risultati per ricerche generiche o aggiornate; i link sotto aprono la ricerca sul web dove troverai i risultati.</em> ${links}</div>`;
+        }
+        const items = results.slice(0, 4).map(r => `<li><a href="${r.url}" target="_blank" rel="noopener">${esc(r.title)}</a> — ${esc(r.snippet.slice(0, 120))}…</li>`).join('');
+        return `<div class="msg-search"><span class="msg-search-label">Risultati:</span> <ul class="msg-search-list">${items}</ul></div>`;
+    }
+
+    async function replaceSearchTokens(text) {
+        const regex = /\[SEARCH:\s*([^\]]+)\]/g;
+        const tokens = [...text.matchAll(regex)];
+        let out = text;
+        for (const t of tokens) {
+            const query = t[1].trim();
+            const results = await fetchSearch(query);
+            out = out.replace(t[0], buildSearchResultsHtml(results, query));
+        }
+        return out;
+    }
+
+    async function processMediaTokens(text, engine = null) {
+        let out = replaceGenCalcTokens(text);
+        out = await replaceWikiImageTokens(out, engine);
+        out = await replaceGenAudioTokens(out, engine);
+        out = await replaceCiteTokens(out);
+        out = await replaceSearchTokens(out);
+        return marked.parse(out);
+    }
+    const STORAGE_CHATS = 'localGeminiChats';
+    const STORAGE_ACTIVE_ID = 'localGeminiActiveChatId';
+
+    function getChats() {
+        try {
+            const raw = localStorage.getItem(STORAGE_CHATS);
+            return raw ? JSON.parse(raw) : [];
+        } catch (_) { return []; }
+    }
+    function saveChats(chats) {
+        localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats));
+    }
+    function getActiveChatId() {
+        return localStorage.getItem(STORAGE_ACTIVE_ID);
+    }
+    function setActiveChatId(id) {
+        if (id == null) localStorage.removeItem(STORAGE_ACTIVE_ID);
+        else localStorage.setItem(STORAGE_ACTIVE_ID, id);
+    }
+
+    const dom = {
+        setupOverlay: document.getElementById('setup-overlay'),
+        overlayTitle: document.getElementById('overlay-title'),
+        btnLoad: document.getElementById('btn-load'),
+        progressFill: document.getElementById('progress-fill'),
+        statusText: document.getElementById('status-text'),
+        modelSelect: document.getElementById('model-select'),
+        modelSelectWrap: document.getElementById('model-select-wrap'),
+        modelSelectTrigger: document.getElementById('model-select-trigger'),
+        modelSelectTriggerLabel: document.getElementById('model-select-trigger-label'),
+        modelSelectDropdown: document.getElementById('model-select-dropdown'),
+        headerModelTitle: document.getElementById('header-model-title'),
+        chatHistory: document.getElementById('chat-history'),
+        userInput: document.getElementById('user-input'),
+        btnAction: document.getElementById('btn-action'),
+        actionIcon: document.getElementById('action-icon'),
+        btnMic: document.getElementById('btn-mic'),
+        micIcon: document.getElementById('mic-icon'),
+        voiceRecordingIndicator: document.getElementById('voice-recording-indicator'),
+        btnNewChat: document.getElementById('btn-new-chat'),
+        btnGenMenu: document.getElementById('btn-gen-menu'),
+        genContextMenu: document.getElementById('gen-context-menu'),
+        genMenuCalc: document.getElementById('gen-menu-calc'),
+        genMenuSearch: document.getElementById('gen-menu-search'),
+        genModeIndicator: document.getElementById('gen-mode-indicator'),
+        genModeIndicatorIcon: document.getElementById('gen-mode-indicator-icon'),
+        welcomeMsg: document.getElementById('welcome-msg'),
+        chatList: document.getElementById('chat-list'),
+        btnNewChatSidebar: document.getElementById('btn-new-chat-sidebar'),
+        modelLoadingBar: document.getElementById('model-loading-bar'),
+        modelLoadingText: document.getElementById('model-loading-text'),
+        modelLoadingProgress: document.getElementById('model-loading-progress'),
+        wikiImageOverlay: document.getElementById('wiki-image-overlay'),
+        wikiSearchInput: document.getElementById('wiki-search-input'),
+        wikiSearchBtn: document.getElementById('wiki-search-btn'),
+        wikiImageStatus: document.getElementById('wiki-image-status'),
+        wikiImageResult: document.getElementById('wiki-image-result'),
+        wikiResultImg: document.getElementById('wiki-result-img'),
+        wikiResultUrl: document.getElementById('wiki-result-url'),
+        wikiClose: document.getElementById('wiki-image-close'),
+        wikiCopyUrl: document.getElementById('wiki-copy-url'),
+        wikiAudioOverlay: document.getElementById('wiki-audio-overlay'),
+        wikiAudioClose: document.getElementById('wiki-audio-close'),
+        wikiAudioSearchInput: document.getElementById('wiki-audio-search-input'),
+        wikiAudioSearchBtn: document.getElementById('wiki-audio-search-btn'),
+        wikiAudioStatus: document.getElementById('wiki-audio-status'),
+        wikiAudioResult: document.getElementById('wiki-audio-result'),
+        wikiAudioPlayer: document.getElementById('wiki-audio-player'),
+        wikiAudioResultUrl: document.getElementById('wiki-audio-result-url'),
+        wikiAudioCopyUrl: document.getElementById('wiki-audio-copy-url'),
+        sidebar: document.getElementById('sidebar'),
+        sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+        btnHamburger: document.getElementById('btn-hamburger')
+    };
+
+    function isMobileView() { return window.matchMedia('(max-width: 768px)').matches; }
+    function openSidebar() {
+        if (!dom.sidebar || !dom.sidebarBackdrop) return;
+        dom.sidebar.classList.add('open');
+        dom.sidebarBackdrop.classList.add('visible');
+        if (dom.btnHamburger) { dom.btnHamburger.setAttribute('aria-expanded', 'true'); dom.btnHamburger.setAttribute('aria-label', 'Chiudi menu chat'); }
+        document.body.style.overflow = 'hidden';
+        const firstFocusable = dom.sidebar.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (firstFocusable && typeof firstFocusable.focus === 'function') firstFocusable.focus();
+    }
+    function closeSidebar() {
+        if (!dom.sidebar || !dom.sidebarBackdrop) return;
+        dom.sidebar.classList.remove('open');
+        dom.sidebarBackdrop.classList.remove('visible');
+        if (dom.btnHamburger) { dom.btnHamburger.setAttribute('aria-expanded', 'false'); dom.btnHamburger.setAttribute('aria-label', 'Apri menu chat'); dom.btnHamburger.focus(); }
+        document.body.style.overflow = '';
+    }
+    function toggleSidebar() {
+        if (dom.sidebar && dom.sidebar.classList.contains('open')) closeSidebar();
+        else openSidebar();
+    }
+
+    // --- FUNZIONE CARICAMENTO MODELLO DI TESTO (LLM) ---
+    async function loadEngine(modelId, isAutoLoad = false) {
+        if (!navigator.gpu) {
+            dom.statusText.innerText = "❌ WebGPU non supportato. Usa un browser moderno (Chrome/Edge).";
+            dom.statusText.style.color = "red";
+            dom.setupOverlay.classList.remove('hidden');
+            dom.btnLoad.style.display = "block";
+            return;
+        }
+
+        const useSlimBar = isAutoLoad && dom.modelLoadingBar;
+        if (useSlimBar) {
+            dom.setupOverlay.classList.add('hidden');
+            dom.modelLoadingBar.classList.add('visible');
+            dom.modelLoadingText.textContent = 'Caricamento modello...';
+            if (dom.modelLoadingProgress) dom.modelLoadingProgress.style.width = '0%';
+        } else {
+            dom.setupOverlay.classList.remove('hidden');
+            dom.modelLoadingBar.classList.remove('visible');
+        }
+        dom.btnLoad.style.display = "none";
+        dom.modelSelect.disabled = true;
+        if (dom.modelSelectTrigger) dom.modelSelectTrigger.disabled = true;
+
+        try {
+            const initProgressCallback = (report) => {
+                const pct = Math.round(report.progress * 100);
+                const text = report.text || '';
+                if (useSlimBar) {
+                    dom.modelLoadingText.textContent = text || `Caricamento... ${pct}%`;
+                    if (dom.modelLoadingProgress) dom.modelLoadingProgress.style.width = pct + '%';
+                } else {
+                    dom.progressFill.style.width = pct + '%';
+                    dom.statusText.innerText = text;
+                }
+            };
+
+            engine = await webllm.CreateMLCEngine(modelId, { initProgressCallback });
+
+            localStorage.setItem('localGeminiModel', modelId);
+            addDownloadedModel(modelId);
+            if (dom.modelSelectDropdown) renderModelDropdown();
+            dom.setupOverlay.classList.add('hidden');
+            if (dom.modelLoadingBar) dom.modelLoadingBar.classList.remove('visible');
+            dom.modelSelect.disabled = false;
+            if (dom.modelSelectTrigger) dom.modelSelectTrigger.disabled = false;
+            dom.userInput.focus();
+            if (pendingMessage) {
+                const pm = pendingMessage;
+                pendingMessage = null;
+                messages.push({ role: "user", content: pm.contentForApi });
+                if (pm.wasImageMode) clearImageRequestMode();
+                if (pm.wasAudioMode) clearAudioRequestMode();
+                if (pm.wasCalcMode) clearCalcRequestMode();
+                if (pm.wasSearchMode) clearSearchRequestMode();
+                const searchFallback = pm.wasSearchMode && pm.contentForApi ? (pm.contentForApi.replace(/^Cerca sul web:\s*/i, '').trim() || null) : null;
+                doGenerateResponse(searchFallback).catch(err => {
+                    console.error('Pending message generation failed:', err);
+                    isGenerating = false;
+                    toggleActionButton('send');
+                });
+            }
+        } catch (error) {
+            console.error("Initialization Error:", error);
+            if (dom.modelLoadingBar) dom.modelLoadingBar.classList.remove('visible');
+            dom.setupOverlay.classList.remove('hidden');
+            dom.statusText.innerText = "❌ Errore critico: " + error.message;
+            dom.statusText.style.color = "red";
+            dom.btnLoad.style.display = "block";
+            dom.btnLoad.disabled = false;
+            dom.modelSelect.disabled = false;
+            if (dom.modelSelectTrigger) dom.modelSelectTrigger.disabled = false;
+        }
+    }
+
+    // --- LOGICA CHAT E UI (multi-chat + sidebar) ---
+    function getWelcomeHtml() {
+        const modelLabel = (dom.modelSelect && getModelLabel(dom.modelSelect.value)) || '—';
+        return '<div class="welcome-msg" id="welcome-msg"><div class="welcome-model-title"><span class="material-symbols-outlined">temp_preferences_custom</span><span id="welcome-model">' + modelLabel + '</span></div><p class="disclaimer">I dati non vengono salvati su server. Le chat e le preferenze restano sul tuo dispositivo. I modelli AI girano in locale.</p></div>';
+    }
+
+    function renderChatArea(msgs) {
+        dom.chatHistory.innerHTML = '';
+        if (!msgs || msgs.length <= 1) {
+            dom.chatHistory.innerHTML = getWelcomeHtml();
+            return;
+        }
+        for (let i = 1; i < msgs.length; i++) {
+            const msg = msgs[i];
+            const role = msg.role === 'user' ? 'user' : 'ai';
+            const bubble = createMessageBubble(role);
+            if (role === 'user') {
+                bubble.innerText = msg.content || '';
+            } else {
+                const raw = msg.content || '';
+                bubble.innerHTML = marked.parse(raw);
+                bubble.dataset.rawText = raw;
+                if (/\[GEN_IMAGE:\s*[^\]]+\]/.test(raw) || /\[GEN_AUDIO:\s*[^\]]+\]/.test(raw) || /\[GEN_CALC:\s*[^\]]+\]/.test(raw) || /\[CITE:\s*[^\]]+\]/.test(raw) || /\[SEARCH:\s*[^\]]+\]/.test(raw)) {
+                    processMediaTokens(raw).then(html => {
+                        bubble.innerHTML = html;
+                        dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+                    }).catch(() => {});
+                }
+            }
+        }
+        dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+    }
+
+    function renderSidebar() {
+        const chats = getChats().slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const activeId = getActiveChatId();
+        dom.chatList.innerHTML = '';
+        chats.forEach(chat => {
+            const item = document.createElement('div');
+            item.className = 'chat-item' + (chat.id === activeId ? ' active' : '');
+            item.dataset.chatId = chat.id;
+            const title = document.createElement('span');
+            title.className = 'chat-item-title';
+            title.textContent = chat.title || 'Nuova chat';
+            if (chat.riassunto) title.title = chat.riassunto;
+            item.appendChild(title);
+            const del = document.createElement('button');
+            del.className = 'chat-item-delete';
+            del.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">delete</span>';
+            del.title = 'Elimina chat';
+            del.onclick = (e) => { e.stopPropagation(); deleteChat(chat.id); };
+            item.appendChild(del);
+            item.onclick = () => { switchToChat(chat.id); if (isMobileView()) closeSidebar(); };
+            dom.chatList.appendChild(item);
+        });
+    }
+
+    function deleteChat(id) {
+        let chats = getChats().filter(c => c.id !== id);
+        saveChats(chats);
+        if (getActiveChatId() === id) {
+            setActiveChatId(null);
+            messages = [systemPrompt];
+            renderChatArea(messages);
+        }
+        renderSidebar();
+    }
+
+    function switchToChat(id) {
+        const chats = getChats();
+        const chat = chats.find(c => c.id === id);
+        if (!chat) return;
+        messages = Array.isArray(chat.messages) ? [...chat.messages] : [systemPrompt];
+        setActiveChatId(id);
+        renderChatArea(messages);
+        renderSidebar();
+    }
+
+    function startNewChat() {
+        if (isGenerating && engine) engine.interruptGenerate();
+        setActiveChatId(null);
+        messages = [systemPrompt];
+        renderChatArea(messages);
+        renderSidebar();
+        dom.userInput.value = '';
+        toggleActionButton('send');
+    }
+
+    function fallbackTitle(msgs) {
+        const first = (msgs || messages).find(m => m.role === 'user')?.content || '';
+        return first.trim().slice(0, 50) || 'Nuova chat';
+    }
+
+    async function generateChatTitleAndRiassunto(msgs) {
+        if (!engine || !msgs || msgs.length <= 1) return { title: fallbackTitle(msgs), riassunto: null };
+        const maxTurns = 4;
+        const context = msgs.slice(1, 1 + maxTurns * 2)
+            .map(m => (m.role === 'user' ? 'Utente: ' : 'Assistente: ') + (m.content || '').slice(0, 300))
+            .join('\n');
+        if (!context.trim()) return { title: fallbackTitle(msgs), riassunto: null };
+        const prompt = [
+            { role: 'system', content: 'Sei un assistente. Rispondi in italiano con due righe separate. Prima riga: TITOLO della chat (massimo 6-8 parole). Seconda riga: RIASSUNTO in una frase. Niente virgolette. Esempio:\nRicetta pasta al pesto\nL\'utente chiede come fare il pesto e la pasta.' },
+            { role: 'user', content: 'Conversazione:\n' + context }
+        ];
+        try {
+            const out = await engine.chat.completions.create({ messages: prompt, stream: false, max_tokens: 80 });
+            const raw = (out.choices[0]?.message?.content || '').trim();
+            const lines = raw.split(/\n/).map(s => s.replace(/^["'\s\-*]+|["'\s]+$/g, '').trim()).filter(Boolean);
+            const rawTitle = (lines[0] || '').trim();
+            const title = (rawTitle.replace(/^\s*\**\s*TITOLO\s*:\s*\**\s*/i, '').trim() || rawTitle).slice(0, 60) || fallbackTitle(msgs);
+            const rawRiassunto = (lines[1] || '').trim();
+            const riassunto = (rawRiassunto.replace(/^\s*\**\s*RIASSUNTO\s*:\s*\**\s*/i, '').trim() || rawRiassunto).slice(0, 120) || null;
+            return { title, riassunto };
+        } catch (_) {
+            return { title: fallbackTitle(msgs), riassunto: null };
+        }
+    }
+
+    function persistCurrentChat() {
+        const activeId = getActiveChatId();
+        let chats = getChats();
+        const titleFallback = fallbackTitle(messages);
+        function saveAndRender(title, riassunto) {
+            const t = title || titleFallback;
+            if (activeId) {
+                const idx = chats.findIndex(c => c.id === activeId);
+                if (idx >= 0) {
+                    chats[idx].messages = [...messages];
+                    chats[idx].title = t;
+                    if (riassunto != null) chats[idx].riassunto = riassunto;
+                    chats[idx].updatedAt = Date.now();
+                    saveChats(chats);
+                    renderSidebar();
+                    return;
+                }
+            }
+            if (messages.length > 1) {
+                const id = 'chat-' + Date.now();
+                chats.unshift({ id, title: t, riassunto: riassunto || null, messages: [...messages], updatedAt: Date.now() });
+                setActiveChatId(id);
+                saveChats(chats);
+                renderSidebar();
+            }
+        }
+        saveAndRender(titleFallback);
+        const lastIsAssistant = messages.length > 1 && messages[messages.length - 1].role === 'assistant';
+        if (messages.length > 1 && engine && lastIsAssistant) {
+            const msgsSnapshot = [...messages];
+            const runAfterResponse = () => {
+                generateChatTitleAndRiassunto(msgsSnapshot).then(({ title: generated, riassunto }) => {
+                    if (generated && generated !== fallbackTitle(msgsSnapshot)) {
+                        const chats2 = getChats();
+                        const id = getActiveChatId();
+                        const idx = id ? chats2.findIndex(c => c.id === id) : 0;
+                        if (idx >= 0 && chats2[idx]) {
+                            chats2[idx].title = generated;
+                            if (riassunto) chats2[idx].riassunto = riassunto;
+                            saveChats(chats2);
+                            renderSidebar();
+                        }
+                    }
+                }).catch(() => {});
+            };
+            if (typeof requestIdleCallback !== 'undefined') {
+                requestIdleCallback(() => setTimeout(runAfterResponse, 500), { timeout: 3000 });
+            } else {
+                setTimeout(runAfterResponse, 2000);
+            }
+        }
+    }
+
+    function migrateLegacyChat() {
+        const chats = getChats();
+        if (chats.length > 0) return;
+        const raw = localStorage.getItem('localGeminiMessages');
+        if (!raw) return;
+        try {
+            const msgs = JSON.parse(raw);
+            if (!Array.isArray(msgs) || msgs.length <= 1) return;
+            const title = (msgs.find(m => m.role === 'user')?.content || '').trim().slice(0, 50) || 'Nuova chat';
+            const id = 'chat-' + Date.now();
+            const chat = { id, title, messages: msgs, updatedAt: Date.now() };
+            saveChats([chat]);
+            setActiveChatId(id);
+        } catch (_) {}
+        localStorage.removeItem('localGeminiMessages');
+        localStorage.removeItem('localGeminiUI');
+    }
+
+    function normalizeChatTitle(title) {
+        if (!title || typeof title !== 'string') return title;
+        const cleaned = title.replace(/^\s*\**\s*TITOLO\s*:\s*\**\s*/i, '').trim();
+        return cleaned || title;
+    }
+
+    function migrateChatTitles() {
+        const chats = getChats();
+        let changed = false;
+        for (const c of chats) {
+            const normalized = normalizeChatTitle(c.title);
+            if (normalized !== c.title) {
+                c.title = normalized;
+                changed = true;
+            }
+        }
+        if (changed) saveChats(chats);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        migrateLegacyChat();
+        migrateChatTitles();
+        const activeId = getActiveChatId();
+        const chats = getChats();
+        if (activeId && chats.length) {
+            const chat = chats.find(c => c.id === activeId);
+            if (chat && Array.isArray(chat.messages) && chat.messages.length) {
+                messages = chat.messages;
+                renderChatArea(messages);
+            } else {
+                messages = [systemPrompt];
+                renderChatArea(messages);
+            }
+        } else {
+            messages = [systemPrompt];
+            renderChatArea(messages);
+        }
+        renderSidebar();
+        if (dom.modelSelect) {
+            dom.modelSelect.innerHTML = '';
+            MODEL_LIST.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.label + ' (' + m.size + ')';
+                dom.modelSelect.appendChild(opt);
+            });
+        }
+        const savedModel = localStorage.getItem('localGeminiModel');
+        const modelOptionExists = savedModel && MODEL_LIST.some(x => x.id === savedModel);
+        if (modelOptionExists) {
+            dom.modelSelect.value = savedModel;
+            loadEngine(savedModel, true);
+        } else {
+            if (savedModel) localStorage.removeItem('localGeminiModel');
+            const defaultModel = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+            if (MODEL_LIST.some(x => x.id === defaultModel)) dom.modelSelect.value = defaultModel;
+            else if (MODEL_LIST.length) dom.modelSelect.value = MODEL_LIST[0].id;
+            dom.setupOverlay.classList.remove('hidden');
+            dom.statusText.innerText = 'Scegli un modello e clicca "Carica Modello Testuale" per iniziare.';
+            dom.statusText.style.color = '';
+            dom.btnLoad.style.display = 'block';
+            dom.btnLoad.disabled = false;
+        }
+        renderModelDropdown();
+        if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = getModelLabel(dom.modelSelect.value);
+        updateHeaderModelTitle();
+        bestBrowserVoice = getBestBrowserVoice();
+        speechSynthesis.onvoiceschanged = () => { bestBrowserVoice = getBestBrowserVoice(); };
+    });
+
+    function getGenMenuBtn(key) {
+        return dom.genContextMenu ? dom.genContextMenu.querySelector('[data-gen="' + key + '"]') : null;
+    }
+    // --- Image request mode (state on gen menu item; next message asks for [GEN_IMAGE: ...]) ---
+    function toggleImageRequestMode() {
+        const btn = getGenMenuBtn('image');
+        if (!btn) return;
+        btn.classList.toggle('active');
+        if (isAudioRequestMode()) clearAudioRequestMode();
+        syncGenMenuActiveState();
+    }
+    function isImageRequestMode() {
+        const btn = getGenMenuBtn('image');
+        return btn && btn.classList.contains('active');
+    }
+    function clearImageRequestMode() {
+        const btn = getGenMenuBtn('image');
+        if (btn) btn.classList.remove('active');
+        updateGenModeIndicator();
+    }
+
+    // --- Audio request mode (state on gen menu item; next message asks for [GEN_AUDIO: ...]) ---
+    function toggleAudioRequestMode() {
+        const btn = getGenMenuBtn('audio');
+        if (!btn) return;
+        btn.classList.toggle('active');
+        if (isImageRequestMode()) clearImageRequestMode();
+        syncGenMenuActiveState();
+    }
+    function isAudioRequestMode() {
+        const btn = getGenMenuBtn('audio');
+        return btn && btn.classList.contains('active');
+    }
+    function clearAudioRequestMode() {
+        const btn = getGenMenuBtn('audio');
+        if (btn) btn.classList.remove('active');
+        updateGenModeIndicator();
+    }
+
+    function toggleCalcRequestMode() {
+        if (!dom.genMenuCalc) return;
+        dom.genMenuCalc.classList.toggle('active');
+        if (isImageRequestMode()) clearImageRequestMode();
+        if (isAudioRequestMode()) clearAudioRequestMode();
+        syncGenMenuActiveState();
+    }
+    function isCalcRequestMode() {
+        return dom.genMenuCalc && dom.genMenuCalc.classList.contains('active');
+    }
+    function clearCalcRequestMode() {
+        if (dom.genMenuCalc) dom.genMenuCalc.classList.remove('active');
+        updateGenModeIndicator();
+    }
+
+    function toggleSearchRequestMode() {
+        if (!dom.genMenuSearch) return;
+        dom.genMenuSearch.classList.toggle('active');
+        if (isImageRequestMode()) clearImageRequestMode();
+        if (isAudioRequestMode()) clearAudioRequestMode();
+        if (isCalcRequestMode()) clearCalcRequestMode();
+        syncGenMenuActiveState();
+    }
+    function isSearchRequestMode() {
+        return dom.genMenuSearch && dom.genMenuSearch.classList.contains('active');
+    }
+    function clearSearchRequestMode() {
+        if (dom.genMenuSearch) dom.genMenuSearch.classList.remove('active');
+        updateGenModeIndicator();
+    }
+
+    function syncGenMenuActiveState() {
+        if (!dom.genContextMenu) return;
+        const imgBtn = dom.genContextMenu.querySelector('[data-gen="image"]');
+        const audioBtn = dom.genContextMenu.querySelector('[data-gen="audio"]');
+        if (imgBtn) imgBtn.classList.toggle('active', isImageRequestMode());
+        if (audioBtn) audioBtn.classList.toggle('active', isAudioRequestMode());
+        if (dom.genMenuCalc) dom.genMenuCalc.classList.toggle('active', isCalcRequestMode());
+        if (dom.genMenuSearch) dom.genMenuSearch.classList.toggle('active', isSearchRequestMode());
+        updateGenModeIndicator();
+    }
+
+    function updateGenModeIndicator() {
+        if (!dom.genModeIndicator || !dom.genModeIndicatorIcon) return;
+        let icon = '';
+        if (isImageRequestMode()) icon = 'image';
+        else if (isAudioRequestMode()) icon = 'graphic_eq';
+        else if (isCalcRequestMode()) icon = 'calculate';
+        else if (isSearchRequestMode()) icon = 'search';
+        dom.genModeIndicatorIcon.textContent = icon;
+        dom.genModeIndicator.classList.toggle('visible', !!icon);
+        dom.genModeIndicator.setAttribute('aria-hidden', icon ? 'false' : 'true');
+    }
+
+    function openGenMenu() {
+        if (!dom.genContextMenu || !dom.btnGenMenu) return;
+        dom.genContextMenu.classList.add('open');
+        dom.btnGenMenu.setAttribute('aria-expanded', 'true');
+        syncGenMenuActiveState();
+    }
+    function closeGenMenu() {
+        if (!dom.genContextMenu || !dom.btnGenMenu) return;
+        dom.genContextMenu.classList.remove('open');
+        dom.btnGenMenu.setAttribute('aria-expanded', 'false');
+    }
+    function toggleGenMenu() {
+        if (dom.genContextMenu && dom.genContextMenu.classList.contains('open')) closeGenMenu();
+        else openGenMenu();
+    }
+
+    // --- Wikipedia image modal (still available programmatically, e.g. openWikiImageModal()) ---
+    function openWikiImageModal(prefillTerm) {
+        if (dom.wikiImageOverlay) dom.wikiImageOverlay.classList.add('visible');
+        if (dom.wikiSearchInput) {
+            dom.wikiSearchInput.value = prefillTerm != null ? String(prefillTerm).trim() : '';
+            dom.wikiSearchInput.focus();
+        }
+        if (dom.wikiImageStatus) { dom.wikiImageStatus.className = ''; dom.wikiImageStatus.style.display = 'none'; dom.wikiImageStatus.textContent = ''; }
+        if (dom.wikiImageResult) dom.wikiImageResult.style.display = 'none';
+    }
+    function closeWikiImageModal() {
+        if (dom.wikiImageOverlay) dom.wikiImageOverlay.classList.remove('visible');
+    }
+    async function wikiModalCerca() {
+        const input = dom.wikiSearchInput && dom.wikiSearchInput.value.trim();
+        const status = dom.wikiImageStatus;
+        const result = dom.wikiImageResult;
+        const img = dom.wikiResultImg;
+        const urlInput = dom.wikiResultUrl;
+        if (!input) return;
+        if (status) { status.className = 'loading'; status.style.display = 'block'; status.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Ricerca in corso...'; }
+        if (result) result.style.display = 'none';
+        const url = await fetchImageForSubject(input);
+        if (status) { status.classList.remove('loading'); status.style.display = 'none'; }
+        if (url && img && urlInput) {
+            img.src = url;
+            urlInput.value = url;
+            if (result) result.style.display = 'block';
+        } else if (status) {
+            status.className = 'error';
+            status.style.display = 'block';
+            status.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Nessuna immagine trovata per "' + input + '".';
+        }
+    }
+    function wikiCopyLink() {
+        const urlInput = dom.wikiResultUrl;
+        if (!urlInput || !urlInput.value) return;
+        const copy = () => {
+            const btn = dom.wikiCopyUrl;
+            if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check text-green-600"></i>'; setTimeout(() => { btn.innerHTML = orig; }, 1500); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(urlInput.value).then(copy).catch(() => { urlInput.select(); document.execCommand('copy'); copy(); });
+        } else {
+            urlInput.select();
+            urlInput.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            copy();
+        }
+    }
+    // + gen menu: open/close and menu item actions
+    if (dom.btnGenMenu) dom.btnGenMenu.addEventListener('click', (e) => { e.stopPropagation(); toggleGenMenu(); });
+    if (dom.genContextMenu) {
+        dom.genContextMenu.addEventListener('click', (e) => e.stopPropagation());
+        dom.genContextMenu.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-gen]');
+            if (!btn) return;
+            const gen = btn.getAttribute('data-gen');
+            if (gen === 'image') { toggleImageRequestMode(); closeGenMenu(); }
+            else if (gen === 'audio') { toggleAudioRequestMode(); closeGenMenu(); }
+            else if (gen === 'calc') { toggleCalcRequestMode(); closeGenMenu(); }
+            else if (gen === 'search') { toggleSearchRequestMode(); closeGenMenu(); }
+        });
+    }
+    document.addEventListener('click', () => { if (dom.genContextMenu && dom.genContextMenu.classList.contains('open')) closeGenMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dom.genContextMenu && dom.genContextMenu.classList.contains('open')) { closeGenMenu(); e.preventDefault(); } });
+
+    if (dom.wikiClose) dom.wikiClose.addEventListener('click', closeWikiImageModal);
+    function openWikiAudioModal(prefillTerm) {
+        if (dom.wikiAudioOverlay) dom.wikiAudioOverlay.classList.add('visible');
+        if (dom.wikiAudioSearchInput) {
+            dom.wikiAudioSearchInput.value = prefillTerm != null ? String(prefillTerm).trim() : '';
+            dom.wikiAudioSearchInput.focus();
+        }
+        if (dom.wikiAudioStatus) { dom.wikiAudioStatus.className = ''; dom.wikiAudioStatus.style.display = 'none'; dom.wikiAudioStatus.textContent = ''; }
+        if (dom.wikiAudioResult) dom.wikiAudioResult.style.display = 'none';
+    }
+    function closeWikiAudioModal() {
+        if (dom.wikiAudioOverlay) dom.wikiAudioOverlay.classList.remove('visible');
+    }
+    async function wikiAudioModalCerca() {
+        const input = dom.wikiAudioSearchInput && dom.wikiAudioSearchInput.value.trim();
+        const status = dom.wikiAudioStatus;
+        const result = dom.wikiAudioResult;
+        const player = dom.wikiAudioPlayer;
+        const urlInput = dom.wikiAudioResultUrl;
+        if (!input) return;
+        if (status) { status.className = 'loading'; status.style.display = 'block'; status.textContent = 'Ricerca in corso...'; }
+        if (result) result.style.display = 'none';
+        const url = await fetchAudioForSubject(input);
+        if (status) { status.classList.remove('loading'); status.style.display = 'none'; }
+        if (url && player && urlInput) {
+            player.src = url;
+            urlInput.value = url;
+            if (result) result.style.display = 'block';
+        } else if (status) {
+            status.className = 'error';
+            status.style.display = 'block';
+            status.textContent = 'Nessun audio trovato per "' + input + '".';
+        }
+    }
+    function wikiAudioCopyLink() {
+        const urlInput = dom.wikiAudioResultUrl;
+        if (!urlInput || !urlInput.value) return;
+        const copy = () => {
+            const btn = dom.wikiAudioCopyUrl;
+            if (btn) { const orig = btn.innerHTML; btn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">check</span>'; setTimeout(() => { btn.innerHTML = orig; }, 1500); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(urlInput.value).then(copy).catch(() => { urlInput.select(); document.execCommand('copy'); copy(); });
+        } else {
+            urlInput.select();
+            document.execCommand('copy');
+            copy();
+        }
+    }
+    if (dom.wikiAudioClose) dom.wikiAudioClose.addEventListener('click', closeWikiAudioModal);
+    if (dom.wikiAudioOverlay) dom.wikiAudioOverlay.addEventListener('click', (e) => { if (e.target === dom.wikiAudioOverlay) closeWikiAudioModal(); });
+    if (dom.wikiAudioSearchBtn) dom.wikiAudioSearchBtn.addEventListener('click', wikiAudioModalCerca);
+    if (dom.wikiAudioSearchInput) dom.wikiAudioSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') wikiAudioModalCerca(); });
+    if (dom.wikiAudioCopyUrl) dom.wikiAudioCopyUrl.addEventListener('click', wikiAudioCopyLink);
+    if (dom.wikiImageOverlay) dom.wikiImageOverlay.addEventListener('click', (e) => { if (e.target === dom.wikiImageOverlay) closeWikiImageModal(); });
+    if (dom.wikiSearchBtn) dom.wikiSearchBtn.addEventListener('click', wikiModalCerca);
+    if (dom.wikiSearchInput) dom.wikiSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') wikiModalCerca(); });
+    if (dom.wikiCopyUrl) dom.wikiCopyUrl.addEventListener('click', wikiCopyLink);
+
+    function getModelLabel(modelId) {
+        const m = MODEL_LIST.find(x => x.id === modelId);
+        return m ? m.label + ' (' + m.size + ')' : (modelId || 'Local AI');
+    }
+    function renderModelDropdown() {
+        if (!dom.modelSelectDropdown || !dom.modelSelect) return;
+        const currentId = dom.modelSelect.value;
+        const downloaded = getDownloadedModels();
+        const groups = {};
+        MODEL_LIST.forEach(m => {
+            if (!groups[m.group]) groups[m.group] = [];
+            groups[m.group].push(m);
+        });
+        let html = '';
+        for (const groupTitle of Object.keys(groups)) {
+            html += '<div class="model-select-group"><div class="model-select-group-title">' + groupTitle + '</div>';
+            groups[groupTitle].forEach(m => {
+                const isSelected = m.id === currentId;
+                const isDownloaded = downloaded.includes(m.id);
+                html += '<div class="model-select-option' + (isSelected ? ' selected' : '') + '" data-model-id="' + m.id + '" role="option" aria-selected="' + isSelected + '">';
+                html += '<span class="option-label">' + m.label + ' <span style="opacity:0.7;">(' + m.size + ')</span></span>';
+                if (isDownloaded) html += '<span class="option-badge"><span class="material-symbols-outlined" style="font-size:14px;">download_done</span> Scaricato</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+        dom.modelSelectDropdown.innerHTML = html;
+        dom.modelSelectDropdown.querySelectorAll('.model-select-option').forEach(el => {
+            el.addEventListener('click', () => {
+                const id = el.dataset.modelId;
+                if (!id) return;
+                dom.modelSelect.value = id;
+                if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = getModelLabel(id);
+                dom.modelSelectTrigger.classList.remove('open');
+                dom.modelSelectDropdown.classList.remove('open');
+                dom.modelSelectTrigger.setAttribute('aria-expanded', 'false');
+                updateHeaderModelTitle();
+                engine = null;
+                loadEngine(id, false);
+            });
+        });
+    }
+    function updateHeaderModelTitle() {
+        if (!dom.modelSelect) return;
+        const label = getModelLabel(dom.modelSelect.value);
+        if (dom.headerModelTitle) dom.headerModelTitle.textContent = label;
+        if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = label;
+        const welcomeModelEl = document.getElementById('welcome-model');
+        if (welcomeModelEl) welcomeModelEl.textContent = label;
+    }
+    function openModelDropdown() {
+        dom.modelSelectTrigger.classList.add('open');
+        dom.modelSelectDropdown.classList.add('open');
+        dom.modelSelectTrigger.setAttribute('aria-expanded', 'true');
+    }
+    function closeModelDropdown() {
+        dom.modelSelectTrigger.classList.remove('open');
+        dom.modelSelectDropdown.classList.remove('open');
+        dom.modelSelectTrigger.setAttribute('aria-expanded', 'false');
+    }
+    dom.modelSelectTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dom.modelSelectTrigger.classList.contains('open')) closeModelDropdown();
+        else openModelDropdown();
+    });
+    document.addEventListener('click', () => closeModelDropdown());
+    dom.modelSelectWrap.addEventListener('click', e => e.stopPropagation());
+
+    if (dom.btnHamburger) dom.btnHamburger.addEventListener('click', toggleSidebar);
+    if (dom.sidebarBackdrop) dom.sidebarBackdrop.addEventListener('click', closeSidebar);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dom.sidebar && dom.sidebar.classList.contains('open')) closeSidebar(); });
+
+    dom.btnLoad.addEventListener('click', () => loadEngine(dom.modelSelect.value, false));
+    dom.modelSelect.addEventListener('change', () => { updateHeaderModelTitle(); engine = null; loadEngine(dom.modelSelect.value, false); });
+    if (dom.btnNewChatSidebar) dom.btnNewChatSidebar.addEventListener('click', () => { startNewChat(); if (isMobileView()) closeSidebar(); });
+
+    const TEXTAREA_ONE_LINE_HEIGHT = 48;
+    const TEXTAREA_MAX_HEIGHT = 150;
+    dom.userInput.addEventListener('input', function() {
+        this.style.height = TEXTAREA_ONE_LINE_HEIGHT + 'px';
+        const newH = this.scrollHeight;
+        if (newH > TEXTAREA_ONE_LINE_HEIGHT)
+            this.style.height = Math.min(newH, TEXTAREA_MAX_HEIGHT) + 'px';
+        dom.btnAction.disabled = this.value.trim() === '' && !isGenerating;
+    });
+
+    function createMessageBubble(role) {
+        const welcomeEl = dom.chatHistory.querySelector('.welcome-msg');
+        if (welcomeEl) welcomeEl.style.display = 'none';
+        const row = document.createElement('div');
+        row.className = `message-row ${role}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        row.appendChild(bubble);
+        if (role === 'ai') {
+            const actions = document.createElement('div');
+            actions.className = 'msg-actions';
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'icon-btn';
+            copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>';
+            copyBtn.title = 'Copia';
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(bubble.dataset.rawText || bubble.innerText);
+                copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">check</span>';
+                setTimeout(() => copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>', 2000);
+            };
+            actions.appendChild(copyBtn);
+            const speakBtn = document.createElement('button');
+            speakBtn.className = 'icon-btn';
+            speakBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">volume_up</span>';
+            speakBtn.title = 'Leggi ad alta voce';
+            speakBtn.onclick = () => {
+                const raw = (bubble.dataset.rawText || bubble.innerText || '').trim();
+                if (!raw) return;
+                if (currentSpeechBubble === speakBtn) { stopSpeech(); return; }
+                stopSpeech();
+                const clean = raw.replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/```[\s\S]*?```/g, '').trim();
+                speakWithBrowser(clean, speakBtn);
+            };
+            actions.appendChild(speakBtn);
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'icon-btn';
+            retryBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">replay</span>';
+            retryBtn.title = 'Riprova';
+            retryBtn.onclick = () => retryLastResponse(row);
+            actions.appendChild(retryBtn);
+            row.appendChild(actions);
+            row.style.flexDirection = 'column';
+        }
+        dom.chatHistory.appendChild(row);
+        return bubble;
+    }
+
+    async function retryLastResponse(clickedRow) {
+        if (!engine || isGenerating) return;
+        const rows = dom.chatHistory.querySelectorAll('.message-row');
+        if (!rows.length) return;
+        const lastRow = rows[rows.length - 1];
+        if (clickedRow !== lastRow || !lastRow.classList.contains('ai')) return;
+        if (messages.length < 2 || messages[messages.length - 1].role !== 'assistant') return;
+        messages.pop();
+        lastRow.remove();
+        isGenerating = true;
+        toggleActionButton('stop');
+        const aiBubble = createMessageBubble('ai');
+        const loadingHtml = '<span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">progress_activity</span>';
+        aiBubble.innerHTML = loadingHtml;
+        let replyText = "";
+        try {
+            const chunks = await engine.chat.completions.create({ messages, stream: true });
+            let lastStreamUpdate = 0;
+            const STREAM_UPDATE_MS = 50;
+            for await (const chunk of chunks) {
+                replyText += chunk.choices[0]?.delta?.content || "";
+                const now = Date.now();
+                if (now - lastStreamUpdate >= STREAM_UPDATE_MS) {
+                    aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+                    aiBubble.dataset.rawText = replyText;
+                    dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+                    lastStreamUpdate = now;
+                }
+            }
+            aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+            aiBubble.dataset.rawText = replyText;
+            dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+            messages.push({ role: "assistant", content: replyText });
+            const processedHtml = await processMediaTokens(replyText, engine);
+            aiBubble.innerHTML = processedHtml;
+            aiBubble.dataset.rawText = replyText;
+            dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+        } catch (err) {
+            aiBubble.innerHTML = "❌ <b>Errore:</b> " + err.message;
+        } finally {
+            if (aiBubble.innerHTML === loadingHtml || aiBubble.innerHTML.includes('progress_activity')) {
+                if (replyText) {
+                    processMediaTokens(replyText, engine).then(html => {
+                        aiBubble.innerHTML = html;
+                        aiBubble.dataset.rawText = replyText;
+                    }).catch(() => {
+                        aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+                        aiBubble.dataset.rawText = replyText;
+                    });
+                } else {
+                    aiBubble.innerHTML = '<em>Risposta vuota o interrotta.</em>';
+                    aiBubble.dataset.rawText = '';
+                }
+            }
+            isGenerating = false;
+            toggleActionButton('send');
+            dom.userInput.focus();
+            persistCurrentChat();
+        }
+    }
+
+    function stopVoiceRecording() {
+        if (typeof isRecording !== 'undefined' && isRecording && recognition) {
+            try { recognition.stop(); } catch (_) {}
+            isRecording = false;
+            if (dom.btnMic) { dom.btnMic.classList.remove('recording'); dom.micIcon.innerText = 'mic'; }
+            if (dom.voiceRecordingIndicator) dom.voiceRecordingIndicator.style.display = 'none';
+        }
+    }
+
+    async function handleAction() {
+        if (isGenerating) { if (engine) engine.interruptGenerate(); return; }
+        stopVoiceRecording();
+        const text = dom.userInput.value.trim();
+        if (!text) return;
+        dom.userInput.value = '';
+        dom.userInput.style.height = TEXTAREA_ONE_LINE_HEIGHT + 'px';
+        const userBubble = createMessageBubble('user');
+        userBubble.innerText = text;
+        // If image, audio, calc or search icon is toggled on, prefix the request
+        let contentForApi = text;
+        if (isImageRequestMode()) contentForApi = "Mostrami un'immagine di: " + text;
+        else if (isAudioRequestMode()) contentForApi = "Mostrami un audio (musica o suono) di: " + text;
+        else if (isCalcRequestMode()) contentForApi = "Calcola: " + text;
+        else if (isSearchRequestMode()) contentForApi = "Cerca sul web: " + text;
+        if (!engine) {
+            pendingMessage = { contentForApi, wasImageMode: isImageRequestMode(), wasAudioMode: isAudioRequestMode(), wasCalcMode: isCalcRequestMode(), wasSearchMode: isSearchRequestMode() };
+            if (isImageRequestMode()) clearImageRequestMode();
+            if (isAudioRequestMode()) clearAudioRequestMode();
+            if (isCalcRequestMode()) clearCalcRequestMode();
+            if (isSearchRequestMode()) clearSearchRequestMode();
+            return;
+        }
+        messages.push({ role: "user", content: contentForApi });
+        if (isImageRequestMode()) clearImageRequestMode();
+        if (isAudioRequestMode()) clearAudioRequestMode();
+        if (isCalcRequestMode()) clearCalcRequestMode();
+        if (isSearchRequestMode()) clearSearchRequestMode();
+        const searchQueryFallback = isSearchRequestMode() ? (extractSearchQuery(text) || text) : (isSearchIntent(text) ? extractSearchQuery(text) : null);
+        await doGenerateResponse(searchQueryFallback);
+    }
+
+    async function doGenerateResponse(searchQueryFallback = null) {
+        if (!engine) return;
+        isGenerating = true;
+        toggleActionButton('stop');
+        const aiBubble = createMessageBubble('ai');
+        const loadingHtml = '<span class="material-symbols-outlined" style="animation: spin 1s linear infinite;">progress_activity</span>';
+        aiBubble.innerHTML = loadingHtml;
+        dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+        await new Promise(r => requestAnimationFrame(r));
+        let replyText = "";
+        try {
+            const chunks = await engine.chat.completions.create({ messages, stream: true });
+            let lastStreamUpdate = 0;
+            const STREAM_UPDATE_MS = 50;
+            for await (const chunk of chunks) {
+                replyText += chunk.choices[0]?.delta?.content || "";
+                const now = Date.now();
+                if (now - lastStreamUpdate >= STREAM_UPDATE_MS) {
+                    aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+                    aiBubble.dataset.rawText = replyText;
+                    dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+                    lastStreamUpdate = now;
+                }
+            }
+            aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+            aiBubble.dataset.rawText = replyText;
+            dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+            messages.push({ role: "assistant", content: replyText });
+            // Replace [GEN_IMAGE: ...], [GEN_AUDIO: ...], [CITE: ...], [SEARCH: ...] with media and grounding
+            const processedHtml = await processMediaTokens(replyText, engine);
+            aiBubble.innerHTML = processedHtml;
+            aiBubble.dataset.rawText = replyText;
+            // If user asked to search but the model didn't output [SEARCH: ...], run search ourselves and append results
+            if (searchQueryFallback && !/\[SEARCH:\s*[^\]]+\]/.test(replyText)) {
+                let results = await fetchSearch(searchQueryFallback);
+                if (results.length === 0 && /ristoranti|migliori|dove mangiare|restaurant|eat/i.test(searchQueryFallback)) {
+                    const place = searchQueryFallback.replace(/^(migliori\s+)?ristoranti\s+|dove\s+mangiare\s+/gi, '').trim() || searchQueryFallback.split(/\s+/).pop();
+                    if (place) results = await fetchSearch('ristoranti ' + place);
+                }
+                aiBubble.innerHTML = aiBubble.innerHTML + buildSearchResultsHtml(results, searchQueryFallback);
+            }
+            dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+        } catch (err) {
+            aiBubble.innerHTML = "❌ <b>Errore:</b> " + err.message;
+        } finally {
+            if (aiBubble.innerHTML === loadingHtml || aiBubble.innerHTML.includes('progress_activity')) {
+                if (replyText) {
+                    processMediaTokens(replyText, engine).then(async html => {
+                        aiBubble.innerHTML = html;
+                        if (searchQueryFallback && !/\[SEARCH:\s*[^\]]+\]/.test(replyText)) {
+                            let results = await fetchSearch(searchQueryFallback);
+                            if (results.length === 0 && /ristoranti|migliori|dove mangiare|restaurant|eat/i.test(searchQueryFallback)) {
+                                const place = searchQueryFallback.replace(/^(migliori\s+)?ristoranti\s+|dove\s+mangiare\s+/gi, '').trim() || searchQueryFallback.split(/\s+/).pop();
+                                if (place) results = await fetchSearch('ristoranti ' + place);
+                            }
+                            aiBubble.innerHTML = aiBubble.innerHTML + buildSearchResultsHtml(results, searchQueryFallback);
+                        }
+                        aiBubble.dataset.rawText = replyText;
+                    }).catch(() => {
+                        aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
+                        aiBubble.dataset.rawText = replyText;
+                    });
+                } else {
+                    aiBubble.innerHTML = '<em>Risposta vuota o interrotta.</em>';
+                    aiBubble.dataset.rawText = '';
+                }
+            }
+            isGenerating = false;
+            toggleActionButton('send');
+            dom.userInput.focus();
+            persistCurrentChat();
+        }
+    }
+
+    function toggleActionButton(state) {
+        if (state === 'stop') {
+            dom.actionIcon.innerText = 'stop';
+            dom.btnAction.classList.replace('send', 'stop');
+        } else {
+            dom.actionIcon.innerText = 'send';
+            dom.btnAction.classList.replace('stop', 'send');
+        }
+        dom.btnAction.disabled = state === 'send' && dom.userInput.value.trim() === '';
+    }
+
+    dom.btnAction.addEventListener('click', handleAction);
+    dom.userInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAction(); } });
+
+    // --- VOICE RECORD (speech-to-text) ---
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isRecording = false;
+    let voiceSavedPrefix = '';
+    let voiceSessionTranscript = '';
+
+    if (SpeechRecognitionAPI) {
+        recognition = new SpeechRecognitionAPI();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'it-IT';
+
+        let currentInterim = '';
+
+        recognition.onresult = (e) => {
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const transcript = (e.results[i][0].transcript || '').trim();
+                if (e.results[i].isFinal) {
+                    currentInterim = '';
+                    if (!transcript) continue;
+                    const tLower = transcript.toLowerCase();
+                    const sLower = voiceSessionTranscript.toLowerCase();
+                    if (sLower === tLower) {
+                    } else if (sLower.startsWith(tLower)) {
+                    } else if (tLower.startsWith(sLower)) {
+                        voiceSessionTranscript = transcript;
+                    } else {
+                        let overlap = 0;
+                        const maxLen = Math.min(voiceSessionTranscript.length, transcript.length);
+                        for (let len = maxLen; len > 0; len--) {
+                            const transcriptStart = transcript.substring(0, len).toLowerCase();
+                            if (voiceSessionTranscript.toLowerCase().endsWith(transcriptStart)) {
+                                overlap = len;
+                                break;
+                            }
+                        }
+                        const toAppend = overlap > 0 ? transcript.substring(overlap).trim() : transcript;
+                        voiceSessionTranscript = (voiceSessionTranscript + ' ' + toAppend).trim();
+                    }
+                } else {
+                    // Non accorciare: tieni il testo più lungo così le parole non scompaiono
+                    if (transcript.length >= currentInterim.length || transcript.startsWith(currentInterim))
+                        currentInterim = transcript;
+                }
+            }
+            const display = (voiceSavedPrefix + ' ' + voiceSessionTranscript + (currentInterim ? ' ' + currentInterim : '')).trim();
+            dom.userInput.value = display;
+            dom.userInput.dispatchEvent(new Event('input'));
+        };
+
+        recognition.onerror = (e) => {
+            if (e.error !== 'aborted') console.warn('SpeechRecognition error:', e.error);
+            isRecording = false;
+            dom.btnMic.classList.remove('recording');
+            dom.micIcon.innerText = 'mic';
+            if (dom.voiceRecordingIndicator) dom.voiceRecordingIndicator.style.display = 'none';
+        };
+
+        recognition.onend = () => {
+            if (isRecording) recognition.start();
+            else if (dom.voiceRecordingIndicator) dom.voiceRecordingIndicator.style.display = 'none';
+        };
+
+        dom.btnMic.addEventListener('click', () => {
+            if (isRecording) {
+                stopVoiceRecording();
+                return;
+            }
+            try {
+                voiceSavedPrefix = dom.userInput.value.trim();
+                voiceSessionTranscript = '';
+                currentInterim = '';
+                recognition.start();
+                isRecording = true;
+                dom.btnMic.classList.add('recording');
+                dom.micIcon.innerText = 'stop';
+                if (dom.voiceRecordingIndicator) dom.voiceRecordingIndicator.style.display = 'inline-flex';
+            } catch (err) {
+                console.warn('SpeechRecognition start failed:', err);
+                isRecording = false;
+                dom.btnMic.classList.remove('recording');
+                dom.micIcon.innerText = 'mic';
+                if (dom.voiceRecordingIndicator) dom.voiceRecordingIndicator.style.display = 'none';
+            }
+        });
+    } else {
+        dom.btnMic.disabled = true;
+        dom.btnMic.title = 'Riconoscimento vocale non supportato in questo browser';
+    }
+</script>
+
+<style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+</body>
+</html>
