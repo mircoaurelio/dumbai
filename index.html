@@ -93,6 +93,13 @@
         #setup-overlay.hidden { display: none; }
         .loader-card { background: var(--surface); padding: 40px; border-radius: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 450px; width: 100%; }
         .loader-card h2 { margin-top: 0; }
+        .overlay-model-list { max-height: 240px; overflow-y: auto; margin: 16px 0; text-align: left; border: 1px solid #e0e0e0; border-radius: 12px; background: #fafafa; }
+        .overlay-model-option { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer; font-size: 14px; color: var(--text-main); transition: background 0.15s; border: none; width: 100%; font-family: inherit; text-align: left; background: none; }
+        .overlay-model-option:hover { background: #f0f4f9; }
+        .overlay-model-option.selected { background: #e8f0fe; color: var(--primary); font-weight: 500; }
+        .overlay-model-option .option-label { flex: 1; min-width: 0; }
+        .overlay-model-option .option-badge { font-size: 11px; color: #0d7d2e; font-weight: 500; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+        .overlay-hint { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; line-height: 1.4; }
         #progress-bg { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin: 20px 0; }
         #progress-fill { width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease; }
         .primary-btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 24px; font-size: 16px; font-weight: 500; cursor: pointer; font-family: inherit; width: 100%; margin-top: 10px; transition: 0.2s; }
@@ -309,10 +316,12 @@
 
     <div id="setup-overlay" class="hidden">
         <div class="loader-card">
-            <h2 id="overlay-title">Avvia Motore AI</h2>
-            <p id="status-text">Inizializzazione del modello locale...</p>
-            <div id="progress-bg"><div id="progress-fill"></div></div>
-            <button id="btn-load" class="primary-btn">Carica Modello Testuale</button>
+            <h2 id="overlay-title">Scegli un modello</h2>
+            <p id="overlay-model-hint" class="overlay-hint">Seleziona il modello da usare per la chat. Il primo avvio potrebbe richiedere il download.</p>
+            <div id="overlay-model-list" class="overlay-model-list" role="listbox" aria-label="Elenco modelli"></div>
+            <p id="status-text" class="overlay-loading-status" style="display: none;">Inizializzazione del modello locale...</p>
+            <div id="progress-bg" style="display: none;"><div id="progress-fill"></div></div>
+            <button id="btn-load" class="primary-btn">Carica modello</button>
         </div>
     </div>
 
@@ -533,11 +542,13 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         if (!subject || !String(subject).trim()) return null;
         const q = encodeURIComponent(String(subject).trim());
         try {
-            const res = await fetch(`https://api.openverse.org/v1/images/?q=${q}&page_size=1`);
+            const res = await fetch(`https://api.openverse.org/v1/images/?q=${q}&page_size=20`);
             if (!res.ok) return null;
             const data = await res.json();
-            const url = data.results && data.results[0] && data.results[0].url;
-            return url || null;
+            const results = (data.results && data.results.length) ? data.results : [];
+            if (results.length === 0) return null;
+            const pick = results[Math.floor(Math.random() * results.length)];
+            return (pick && pick.url) || null;
         } catch (_) { return null; }
     }
 
@@ -545,13 +556,13 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         if (!subject || !String(subject).trim()) return null;
         const q = encodeURIComponent(String(subject).trim());
         try {
-            const searchUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=1&format=json`;
+            const searchUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&list=search&srsearch=${q}&srnamespace=6&srlimit=15&format=json`;
             const searchRes = await fetch(searchUrl);
             if (!searchRes.ok) return null;
             const searchData = await searchRes.json();
             const hits = searchData.query && searchData.query.search;
             if (!hits || hits.length === 0) return null;
-            const fileTitle = hits[0].title;
+            const fileTitle = hits[Math.floor(Math.random() * hits.length)].title;
             const infoUrl = `https://commons.wikimedia.org/w/api.php?origin=*&action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json`;
             const infoRes = await fetch(infoUrl);
             if (!infoRes.ok) return null;
@@ -1009,6 +1020,9 @@ The rules above apply when the user asks for an image, for audio, for a calculat
     const dom = {
         setupOverlay: document.getElementById('setup-overlay'),
         overlayTitle: document.getElementById('overlay-title'),
+        overlayModelList: document.getElementById('overlay-model-list'),
+        overlayModelHint: document.getElementById('overlay-model-hint'),
+        progressBg: document.getElementById('progress-bg'),
         btnLoad: document.getElementById('btn-load'),
         progressFill: document.getElementById('progress-fill'),
         statusText: document.getElementById('status-text'),
@@ -1083,13 +1097,65 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         else openSidebar();
     }
 
+    function showOverlayChooseModel() {
+        if (dom.overlayTitle) dom.overlayTitle.textContent = 'Scegli un modello';
+        renderOverlayModelList();
+        if (dom.overlayModelList) dom.overlayModelList.style.display = '';
+        if (dom.overlayModelHint) dom.overlayModelHint.style.display = '';
+        if (dom.progressBg) dom.progressBg.style.display = 'none';
+        if (dom.statusText) { dom.statusText.style.display = 'none'; dom.statusText.style.color = ''; }
+        if (dom.btnLoad) { dom.btnLoad.style.display = 'block'; dom.btnLoad.disabled = false; }
+    }
+    function showOverlayLoading() {
+        if (dom.overlayTitle) dom.overlayTitle.textContent = 'Caricamento modello...';
+        if (dom.overlayModelList) dom.overlayModelList.style.display = 'none';
+        if (dom.overlayModelHint) dom.overlayModelHint.style.display = 'none';
+        if (dom.progressBg) dom.progressBg.style.display = 'block';
+        if (dom.statusText) { dom.statusText.style.display = 'block'; dom.statusText.innerText = 'Inizializzazione...'; }
+        if (dom.btnLoad) dom.btnLoad.style.display = 'none';
+    }
+    function renderOverlayModelList() {
+        if (!dom.overlayModelList || !dom.modelSelect) return;
+        const currentId = dom.modelSelect.value;
+        const downloaded = getDownloadedModels();
+        const groups = {};
+        MODEL_LIST.forEach(m => {
+            if (!groups[m.group]) groups[m.group] = [];
+            groups[m.group].push(m);
+        });
+        let html = '';
+        for (const groupTitle of Object.keys(groups)) {
+            groups[groupTitle].forEach(m => {
+                const isSelected = m.id === currentId;
+                const isDownloaded = downloaded.includes(m.id);
+                html += '<button type="button" class="overlay-model-option' + (isSelected ? ' selected' : '') + '" data-model-id="' + m.id + '" role="option">';
+                html += '<span class="option-label">' + m.label + ' <span style="opacity:0.7;">(' + m.size + ')</span></span>';
+                if (isDownloaded) html += '<span class="option-badge"><span class="material-symbols-outlined" style="font-size:14px;">download_done</span> Scaricato</span>';
+                html += '</button>';
+            });
+        }
+        dom.overlayModelList.innerHTML = html;
+        dom.overlayModelList.querySelectorAll('.overlay-model-option').forEach(el => {
+            el.addEventListener('click', () => {
+                const id = el.dataset.modelId;
+                if (!id) return;
+                dom.modelSelect.value = id;
+                if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = getModelLabel(id);
+                dom.overlayModelList.querySelectorAll('.overlay-model-option').forEach(o => o.classList.remove('selected'));
+                el.classList.add('selected');
+                updateHeaderModelTitle();
+            });
+        });
+    }
+
     // --- FUNZIONE CARICAMENTO MODELLO DI TESTO (LLM) ---
     async function loadEngine(modelId, isAutoLoad = false) {
         if (!navigator.gpu) {
             dom.statusText.innerText = "❌ WebGPU non supportato. Usa un browser moderno (Chrome/Edge).";
             dom.statusText.style.color = "red";
             dom.setupOverlay.classList.remove('hidden');
-            dom.btnLoad.style.display = "block";
+            showOverlayChooseModel();
+            if (dom.statusText) { dom.statusText.style.display = 'block'; }
             return;
         }
 
@@ -1102,8 +1168,8 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         } else {
             dom.setupOverlay.classList.remove('hidden');
             dom.modelLoadingBar.classList.remove('visible');
+            showOverlayLoading();
         }
-        dom.btnLoad.style.display = "none";
         dom.modelSelect.disabled = true;
         if (dom.modelSelectTrigger) dom.modelSelectTrigger.disabled = true;
 
@@ -1149,10 +1215,10 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             console.error("Initialization Error:", error);
             if (dom.modelLoadingBar) dom.modelLoadingBar.classList.remove('visible');
             dom.setupOverlay.classList.remove('hidden');
-            dom.statusText.innerText = "❌ Errore critico: " + error.message;
+            showOverlayChooseModel();
+            dom.statusText.innerText = "❌ Errore: " + error.message;
             dom.statusText.style.color = "red";
-            dom.btnLoad.style.display = "block";
-            dom.btnLoad.disabled = false;
+            dom.statusText.style.display = "block";
             dom.modelSelect.disabled = false;
             if (dom.modelSelectTrigger) dom.modelSelectTrigger.disabled = false;
         }
@@ -1405,10 +1471,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             if (MODEL_LIST.some(x => x.id === defaultModel)) dom.modelSelect.value = defaultModel;
             else if (MODEL_LIST.length) dom.modelSelect.value = MODEL_LIST[0].id;
             dom.setupOverlay.classList.remove('hidden');
-            dom.statusText.innerText = 'Scegli un modello e clicca "Carica Modello Testuale" per iniziare.';
-            dom.statusText.style.color = '';
-            dom.btnLoad.style.display = 'block';
-            dom.btnLoad.disabled = false;
+            showOverlayChooseModel();
         }
         renderModelDropdown();
         if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = getModelLabel(dom.modelSelect.value);
