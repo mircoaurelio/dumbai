@@ -172,6 +172,16 @@
         .welcome-msg .welcome-model-title .material-symbols-outlined { color: #d93025; font-size: 28px; }
         .welcome-msg .disclaimer { font-size: 12px; opacity: 0.75; max-width: 320px; line-height: 1.5; margin: 0 auto; }
 
+        /* Vision image preview (load from folder) */
+        .vision-image-preview { display: none; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 8px; background: #e8f0fe; border-radius: 12px; border: 1px solid rgba(11,87,208,0.2); }
+        .vision-image-preview.visible { display: flex; }
+        .vision-image-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+        .vision-image-preview .vision-preview-label { flex: 1; font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vision-image-preview .vision-preview-remove { background: none; border: none; color: #d93025; padding: 4px; cursor: pointer; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .vision-image-preview .vision-preview-remove:hover { background: rgba(217,48,37,0.1); }
+        .action-btn.vision-image-btn { color: var(--primary); }
+        .action-btn.vision-image-btn:hover { background: #e8f0fe; }
+
         /* Recording indicator */
         .voice-recording-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #d93025; margin-bottom: 6px; }
         .voice-recording-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: #d93025; animation: recording-blink 1s ease-in-out infinite; }
@@ -341,6 +351,11 @@
                 <span class="dot"></span>
                 <span>In ascolto...</span>
             </div>
+            <div id="vision-image-preview" class="vision-image-preview" aria-live="polite">
+                <img id="vision-preview-img" src="" alt="" />
+                <span id="vision-preview-label" class="vision-preview-label"></span>
+                <button type="button" id="vision-preview-remove" class="vision-preview-remove" title="Rimuovi immagine"><span class="material-symbols-outlined" style="font-size:20px;">close</span></button>
+            </div>
             <div class="input-box">
                 <div class="input-box-wrap">
                     <button id="btn-gen-menu" class="action-btn gen-menu-btn" type="button" title="Menu funzioni (immagine, audio, calcolo, cerca)" aria-haspopup="true" aria-expanded="false">
@@ -354,6 +369,10 @@
                     </div>
                 </div>
                 <span id="gen-mode-indicator" class="gen-mode-indicator" aria-hidden="true" title="Modalità attiva"><span class="material-symbols-outlined" id="gen-mode-indicator-icon"></span></span>
+                <input type="file" id="vision-image-input" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" aria-label="Carica immagine per il modello visione">
+                <button id="btn-vision-image" class="action-btn vision-image-btn" type="button" title="Carica immagine (modello visione)" style="display: none;">
+                    <span class="material-symbols-outlined">add_photo_alternate</span>
+                </button>
                 <textarea id="user-input" rows="1" placeholder="Scrivi un messaggio..."></textarea>
                 <button id="btn-mic" class="action-btn mic" type="button" title="Registra voce (speech-to-text)">
                     <span class="material-symbols-outlined" id="mic-icon">mic</span>
@@ -435,13 +454,31 @@
     import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
     const MODEL_LIST = [
+        // Pesi piuma
         { id: 'SmolLM2-135M-Instruct-q4f16_1-MLC', label: 'SmolLM2 135M', size: '~150 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
+        { id: 'SmolLM2-135M-Instruct-q0f16-MLC', label: 'SmolLM2 135M q0', size: '~100 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
         { id: 'SmolLM2-360M-Instruct-q4f16_1-MLC', label: 'SmolLM2 360M', size: '~350 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
         { id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', label: 'Qwen 2.5 0.5B', size: '~400 MB', group: 'Pesi Piuma (Velocissimi, 100-400MB)' },
-        { id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', label: 'Llama 3.2 1B', size: '~800 MB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        // Pochissima memoria (~1GB) — DeepSeek-R1 1.5B non è al momento in lista MLC
+        { id: 'SmolLM2-360M-Instruct-q0f16-MLC', label: 'SmolLM2 360M q0', size: '~250 MB', group: 'Pochissima memoria (~1GB)' },
+        { id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC', label: 'Llama 3.2 1B', size: '~800 MB', group: 'Pochissima memoria (~1GB)' },
+        // Medi
+        { id: 'Llama-3.2-1B-Instruct-q4f32_1-MLC', label: 'Llama 3.2 1B f32', size: '~1 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
         { id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', label: 'Qwen 2.5 1.5B', size: '~1 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
-        { id: 'gemma-2b-it-q4f16_1-MLC', label: 'Google Gemma 2B', size: '~1.5 GB', group: 'Medi (Bilanciati, 800MB-2GB)' }
+        { id: 'gemma-2b-it-q4f16_1-MLC', label: 'Google Gemma 2B', size: '~1.5 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        { id: 'gemma-2-2b-it-q4f16_1-MLC', label: 'Gemma 2 2B', size: '~1.5 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        { id: 'SmolLM2-1.7B-Instruct-q4f16_1-MLC', label: 'SmolLM2 1.7B', size: '~1.2 GB', group: 'Medi (Bilanciati, 800MB-2GB)' },
+        // Intelligenti 3B (come Qwen 2.5 3B — MLC offre Llama/Hermes 3B)
+        { id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC', label: 'Llama 3.2 3B', size: '~2 GB', group: 'Intelligenti 3B (bilanciati)' },
+        { id: 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC', label: 'Hermes 3 Llama 3.2 3B', size: '~2 GB', group: 'Intelligenti 3B (bilanciati)' },
+        // Visione (vede immagini) — Gemma 3 4B non in MLC; usiamo Phi 3.5 Vision
+        { id: 'Phi-3.5-vision-instruct-q4f16_1-MLC', label: 'Phi 3.5 Vision (vede immagini)', size: '~2.5 GB', group: 'Visione (vede immagini)' },
+        { id: 'Phi-3.5-vision-instruct-q4f32_1-MLC', label: 'Phi 3.5 Vision f32', size: '~3 GB', group: 'Visione (vede immagini)' },
+        // DeepSeek R1 (7B; 1.5B al momento non in lista MLC)
+        { id: 'DeepSeek-R1-Distill-Qwen-7B-q4f16_1-MLC', label: 'DeepSeek-R1 Qwen 7B', size: '~4 GB', group: 'DeepSeek R1' },
+        { id: 'DeepSeek-R1-Distill-Qwen-7B-q4f32_1-MLC', label: 'DeepSeek-R1 Qwen 7B f32', size: '~5 GB', group: 'DeepSeek R1' }
     ];
+    const VISION_MODEL_IDS = ['Phi-3.5-vision-instruct-q4f16_1-MLC', 'Phi-3.5-vision-instruct-q4f32_1-MLC'];
     const STORAGE_DOWNLOADED_MODELS = 'webllm_downloaded_models';
     function getDownloadedModels() {
         try {
@@ -458,6 +495,7 @@
     let engine = null;
     let isGenerating = false;
     let pendingMessage = null;  // user message sent before model loaded
+    let pendingVisionImage = null;  // { dataUrl, fileName } when user loads image for vision model
     let currentSpeechBubble = null;
     let currentAudioPlayback = null;
     let bestBrowserVoice = null;
@@ -1072,8 +1110,35 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         wikiAudioCopyUrl: document.getElementById('wiki-audio-copy-url'),
         sidebar: document.getElementById('sidebar'),
         sidebarBackdrop: document.getElementById('sidebar-backdrop'),
-        btnHamburger: document.getElementById('btn-hamburger')
+        btnHamburger: document.getElementById('btn-hamburger'),
+        visionImageInput: document.getElementById('vision-image-input'),
+        btnVisionImage: document.getElementById('btn-vision-image'),
+        visionImagePreview: document.getElementById('vision-image-preview'),
+        visionPreviewImg: document.getElementById('vision-preview-img'),
+        visionPreviewLabel: document.getElementById('vision-preview-label'),
+        visionPreviewRemove: document.getElementById('vision-preview-remove')
     };
+
+    function isVisionModel() {
+        return dom.modelSelect && VISION_MODEL_IDS.includes(dom.modelSelect.value);
+    }
+    function updateVisionImageButtonVisibility() {
+        if (dom.btnVisionImage) dom.btnVisionImage.style.display = isVisionModel() ? 'flex' : 'none';
+        if (!isVisionModel() && pendingVisionImage) clearPendingVisionImage();
+    }
+    function clearPendingVisionImage() {
+        pendingVisionImage = null;
+        if (dom.visionImagePreview) dom.visionImagePreview.classList.remove('visible');
+        if (dom.visionPreviewImg) { dom.visionPreviewImg.src = ''; dom.visionPreviewImg.alt = ''; }
+        if (dom.visionPreviewLabel) dom.visionPreviewLabel.textContent = '';
+        if (dom.visionImageInput) dom.visionImageInput.value = '';
+    }
+    function setPendingVisionImage(dataUrl, fileName) {
+        pendingVisionImage = { dataUrl, fileName: fileName || 'image' };
+        if (dom.visionPreviewImg) { dom.visionPreviewImg.src = dataUrl; dom.visionPreviewImg.alt = fileName || 'Image'; }
+        if (dom.visionPreviewLabel) dom.visionPreviewLabel.textContent = fileName || 'Immagine caricata';
+        if (dom.visionImagePreview) dom.visionImagePreview.classList.add('visible');
+    }
 
     function isMobileView() { return window.matchMedia('(max-width: 768px)').matches; }
     function openSidebar() {
@@ -1191,6 +1256,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             localStorage.setItem('localGeminiModel', modelId);
             addDownloadedModel(modelId);
             if (dom.modelSelectDropdown) renderModelDropdown();
+            updateVisionImageButtonVisibility();
             dom.setupOverlay.classList.add('hidden');
             if (dom.modelLoadingBar) dom.modelLoadingBar.classList.remove('visible');
             dom.modelSelect.disabled = false;
@@ -1241,16 +1307,33 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             const role = msg.role === 'user' ? 'user' : 'ai';
             const bubble = createMessageBubble(role);
             if (role === 'user') {
-                bubble.innerText = msg.content || '';
+                if (Array.isArray(msg.content)) {
+                    const textPart = msg.content.find(p => p && p.type === 'text');
+                    const imgPart = msg.content.find(p => p && p.type === 'image_url');
+                    if (textPart && textPart.text) { const s = document.createElement('span'); s.textContent = textPart.text; bubble.appendChild(s); }
+                    if (imgPart && imgPart.image_url && imgPart.image_url.url) {
+                        const img = document.createElement('img');
+                        img.src = imgPart.image_url.url; img.alt = 'Image';
+                        img.style.maxWidth = '100%'; img.style.maxHeight = '200px'; img.style.borderRadius = '8px'; img.style.display = 'block'; img.style.marginTop = '8px';
+                        bubble.appendChild(img);
+                    }
+                } else {
+                    bubble.innerText = msg.content || '';
+                }
             } else {
                 const raw = msg.content || '';
-                bubble.innerHTML = marked.parse(raw);
-                bubble.dataset.rawText = raw;
-                if (/\[GEN_IMAGE:\s*[^\]]+\]/.test(raw) || /\[GEN_AUDIO:\s*[^\]]+\]/.test(raw) || /\[GEN_CALC:\s*[^\]]+\]/.test(raw) || /\[CITE:\s*[^\]]+\]/.test(raw) || /\[SEARCH:\s*[^\]]+\]/.test(raw)) {
-                    processMediaTokens(raw).then(html => {
-                        bubble.innerHTML = html;
-                        dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
-                    }).catch(() => {});
+                if (msg.html) {
+                    bubble.innerHTML = msg.html;
+                    bubble.dataset.rawText = raw;
+                } else {
+                    bubble.innerHTML = marked.parse(raw);
+                    bubble.dataset.rawText = raw;
+                    if (/\[GEN_IMAGE:\s*[^\]]+\]/.test(raw) || /\[GEN_AUDIO:\s*[^\]]+\]/.test(raw) || /\[GEN_CALC:\s*[^\]]+\]/.test(raw) || /\[CITE:\s*[^\]]+\]/.test(raw) || /\[SEARCH:\s*[^\]]+\]/.test(raw)) {
+                        processMediaTokens(raw).then(html => {
+                            bubble.innerHTML = html;
+                            dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
+                        }).catch(() => {});
+                    }
                 }
             }
         }
@@ -1312,16 +1395,25 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         toggleActionButton('send');
     }
 
+    function getMessageText(msg) {
+        if (!msg || !msg.content) return '';
+        if (typeof msg.content === 'string') return msg.content;
+        if (Array.isArray(msg.content)) {
+            const textPart = msg.content.find(p => p && p.type === 'text');
+            return (textPart && textPart.text) ? textPart.text : '[Immagine]';
+        }
+        return '';
+    }
     function fallbackTitle(msgs) {
-        const first = (msgs || messages).find(m => m.role === 'user')?.content || '';
-        return first.trim().slice(0, 50) || 'Nuova chat';
+        const first = (msgs || messages).find(m => m.role === 'user');
+        return (getMessageText(first) || '').trim().slice(0, 50) || 'Nuova chat';
     }
 
     async function generateChatTitleAndRiassunto(msgs) {
         if (!engine || !msgs || msgs.length <= 1) return { title: fallbackTitle(msgs), riassunto: null };
         const maxTurns = 4;
         const context = msgs.slice(1, 1 + maxTurns * 2)
-            .map(m => (m.role === 'user' ? 'Utente: ' : 'Assistente: ') + (m.content || '').slice(0, 300))
+            .map(m => (m.role === 'user' ? 'Utente: ' : 'Assistente: ') + (getMessageText(m) || (m.content || '')).slice(0, 300))
             .join('\n');
         if (!context.trim()) return { title: fallbackTitle(msgs), riassunto: null };
         const prompt = [
@@ -1342,6 +1434,17 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         }
     }
 
+    function messagesForStorage(msgs) {
+        return (msgs || messages).map(m => {
+            if (m.role !== 'user' || typeof m.content === 'string') return { ...m };
+            if (Array.isArray(m.content)) {
+                const textPart = m.content.find(p => p && p.type === 'text');
+                const text = (textPart && textPart.text) ? textPart.text : '';
+                return { role: m.role, content: text + (text ? ' ' : '') + '[Immagine]' };
+            }
+            return { ...m };
+        });
+    }
     function persistCurrentChat() {
         const activeId = getActiveChatId();
         let chats = getChats();
@@ -1351,7 +1454,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             if (activeId) {
                 const idx = chats.findIndex(c => c.id === activeId);
                 if (idx >= 0) {
-                    chats[idx].messages = [...messages];
+                    chats[idx].messages = messagesForStorage(messages);
                     chats[idx].title = t;
                     if (riassunto != null) chats[idx].riassunto = riassunto;
                     chats[idx].updatedAt = Date.now();
@@ -1362,7 +1465,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             }
             if (messages.length > 1) {
                 const id = 'chat-' + Date.now();
-                chats.unshift({ id, title: t, riassunto: riassunto || null, messages: [...messages], updatedAt: Date.now() });
+                chats.unshift({ id, title: t, riassunto: riassunto || null, messages: messagesForStorage(messages), updatedAt: Date.now() });
                 setActiveChatId(id);
                 saveChats(chats);
                 renderSidebar();
@@ -1403,7 +1506,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         try {
             const msgs = JSON.parse(raw);
             if (!Array.isArray(msgs) || msgs.length <= 1) return;
-            const title = (msgs.find(m => m.role === 'user')?.content || '').trim().slice(0, 50) || 'Nuova chat';
+            const title = getMessageText(msgs.find(m => m.role === 'user')).trim().slice(0, 50) || 'Nuova chat';
             const id = 'chat-' + Date.now();
             const chat = { id, title, messages: msgs, updatedAt: Date.now() };
             saveChats([chat]);
@@ -1474,6 +1577,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             showOverlayChooseModel();
         }
         renderModelDropdown();
+        updateVisionImageButtonVisibility();
         if (dom.modelSelectTriggerLabel) dom.modelSelectTriggerLabel.textContent = getModelLabel(dom.modelSelect.value);
         updateHeaderModelTitle();
         bestBrowserVoice = getBestBrowserVoice();
@@ -1788,8 +1892,18 @@ The rules above apply when the user asks for an image, for audio, for a calculat
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dom.sidebar && dom.sidebar.classList.contains('open')) closeSidebar(); });
 
     dom.btnLoad.addEventListener('click', () => loadEngine(dom.modelSelect.value, false));
-    dom.modelSelect.addEventListener('change', () => { updateHeaderModelTitle(); engine = null; loadEngine(dom.modelSelect.value, false); });
+    dom.modelSelect.addEventListener('change', () => { updateHeaderModelTitle(); updateVisionImageButtonVisibility(); engine = null; loadEngine(dom.modelSelect.value, false); });
     if (dom.btnNewChatSidebar) dom.btnNewChatSidebar.addEventListener('click', () => { startNewChat(); if (isMobileView()) closeSidebar(); });
+
+    if (dom.btnVisionImage) dom.btnVisionImage.addEventListener('click', () => { if (dom.visionImageInput) dom.visionImageInput.click(); });
+    if (dom.visionImageInput) dom.visionImageInput.addEventListener('change', function() {
+        const file = this.files && this.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = () => { setPendingVisionImage(reader.result, file.name); dom.btnAction.disabled = false; };
+        reader.readAsDataURL(file);
+    });
+    if (dom.visionPreviewRemove) dom.visionPreviewRemove.addEventListener('click', () => { clearPendingVisionImage(); dom.btnAction.disabled = dom.userInput.value.trim() === '' && !(isVisionModel() && pendingVisionImage); });
 
     const TEXTAREA_ONE_LINE_HEIGHT = 48;
     const TEXTAREA_MAX_HEIGHT = 150;
@@ -1798,7 +1912,8 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         const newH = this.scrollHeight;
         if (newH > TEXTAREA_ONE_LINE_HEIGHT)
             this.style.height = Math.min(newH, TEXTAREA_MAX_HEIGHT) + 'px';
-        dom.btnAction.disabled = this.value.trim() === '' && !isGenerating;
+        const canSend = this.value.trim() !== '' || (isVisionModel() && pendingVisionImage);
+        dom.btnAction.disabled = !canSend && !isGenerating;
     });
 
     function createMessageBubble(role) {
@@ -1922,26 +2037,48 @@ The rules above apply when the user asks for an image, for audio, for a calculat
         if (isGenerating) { if (engine) engine.interruptGenerate(); return; }
         stopVoiceRecording();
         const text = dom.userInput.value.trim();
-        if (!text) return;
+        const hasVisionImage = isVisionModel() && pendingVisionImage;
+        if (!text && !hasVisionImage) return;
         dom.userInput.value = '';
         dom.userInput.style.height = TEXTAREA_ONE_LINE_HEIGHT + 'px';
         const userBubble = createMessageBubble('user');
-        userBubble.innerText = text;
         // If image, audio, calc or search icon is toggled on, prefix the request
         let contentForApi = text;
         if (isImageRequestMode()) contentForApi = "Mostrami un'immagine di: " + text;
         else if (isAudioRequestMode()) contentForApi = "Mostrami un audio (musica o suono) di: " + text;
         else if (isCalcRequestMode()) contentForApi = "Calcola: " + text;
         else if (isSearchRequestMode()) contentForApi = "Cerca sul web: " + text;
+        let userContent;
+        if (hasVisionImage) {
+            const textPart = contentForApi || 'What is in this image? Describe it.';
+            userContent = [
+                { type: 'text', text: textPart },
+                { type: 'image_url', image_url: { url: pendingVisionImage.dataUrl } }
+            ];
+            if (textPart) {
+                const span = document.createElement('span');
+                span.textContent = textPart;
+                userBubble.appendChild(span);
+            }
+            const img = document.createElement('img');
+            img.src = pendingVisionImage.dataUrl;
+            img.alt = 'Caricata';
+            img.style.maxWidth = '100%'; img.style.maxHeight = '200px'; img.style.borderRadius = '8px'; img.style.display = 'block'; img.style.marginTop = '8px';
+            userBubble.appendChild(img);
+            clearPendingVisionImage();
+        } else {
+            userContent = contentForApi;
+            userBubble.innerText = contentForApi;
+        }
         if (!engine) {
-            pendingMessage = { contentForApi, wasImageMode: isImageRequestMode(), wasAudioMode: isAudioRequestMode(), wasCalcMode: isCalcRequestMode(), wasSearchMode: isSearchRequestMode() };
+            pendingMessage = { contentForApi: typeof userContent === 'string' ? userContent : (userContent.find(p => p.type === 'text')?.text || ''), wasImageMode: isImageRequestMode(), wasAudioMode: isAudioRequestMode(), wasCalcMode: isCalcRequestMode(), wasSearchMode: isSearchRequestMode() };
             if (isImageRequestMode()) clearImageRequestMode();
             if (isAudioRequestMode()) clearAudioRequestMode();
             if (isCalcRequestMode()) clearCalcRequestMode();
             if (isSearchRequestMode()) clearSearchRequestMode();
             return;
         }
-        messages.push({ role: "user", content: contentForApi });
+        messages.push({ role: "user", content: userContent });
         if (isImageRequestMode()) clearImageRequestMode();
         if (isAudioRequestMode()) clearAudioRequestMode();
         if (isCalcRequestMode()) clearCalcRequestMode();
@@ -1991,6 +2128,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
                 }
                 aiBubble.innerHTML = aiBubble.innerHTML + buildSearchResultsHtml(results, searchQueryFallback);
             }
+            messages[messages.length - 1].html = aiBubble.innerHTML;
             dom.chatHistory.scrollTop = dom.chatHistory.scrollHeight;
         } catch (err) {
             aiBubble.innerHTML = "❌ <b>Errore:</b> " + err.message;
@@ -2008,6 +2146,10 @@ The rules above apply when the user asks for an image, for audio, for a calculat
                             aiBubble.innerHTML = aiBubble.innerHTML + buildSearchResultsHtml(results, searchQueryFallback);
                         }
                         aiBubble.dataset.rawText = replyText;
+                        if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+                            messages[messages.length - 1].html = aiBubble.innerHTML;
+                            persistCurrentChat();
+                        }
                     }).catch(() => {
                         aiBubble.innerHTML = marked.parse(stripMediaTokens(replyText));
                         aiBubble.dataset.rawText = replyText;
@@ -2032,7 +2174,7 @@ The rules above apply when the user asks for an image, for audio, for a calculat
             dom.actionIcon.innerText = 'send';
             dom.btnAction.classList.replace('stop', 'send');
         }
-        dom.btnAction.disabled = state === 'send' && dom.userInput.value.trim() === '';
+        dom.btnAction.disabled = state === 'send' && dom.userInput.value.trim() === '' && !(isVisionModel() && pendingVisionImage);
     }
 
     dom.btnAction.addEventListener('click', handleAction);
